@@ -1,0 +1,41 @@
+{
+  "source": "live",
+  "rows": [
+    {
+      "cell": "closed_short|t00",
+      "n": 6,
+      "distinct": 1,
+      "mean_chars": 10,
+      "median_latency_s": 0.383,
+      "min_latency_s": 0.332,
+      "max_latency_s": 7.02
+    },
+    {
+      "cell": "closed_short|t10",
+      "n": 6,
+      "distinct": 1,
+      "mean_chars": 10,
+      "median_latency_s": 0.345,
+      "min_latency_s": 0.331,
+      "max_latency_s": 0.417
+    },
+    {
+      "cell": "open_list|t00",
+      "n": 6,
+      "distinct": 1,
+      "mean_chars": 199,
+      "median_latency_s": 4.86,
+      "min_latency_s": 4.805,
+      "max_latency_s": 5.717
+    },
+    {
+      "cell": "open_list|t10",
+      "n": 6,
+      "distinct": 6,
+      "mean_chars": 179,
+      "median_latency_s": 4.159,
+      "min_latency_s": 3.864,
+      "max_latency_s": 5.171
+    }
+  ]
+}
