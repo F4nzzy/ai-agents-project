@@ -43,7 +43,7 @@ def main() -> int:
         #     temperature=0.0
         #     max_tokens=200
         #   Assign the result to `reply`.
-        reply = None
+        reply = client.chat.completions.create(model=SMALL.name, messages=[{"role": "user", "content": QUESTION}], temperature=0.0, max_tokens=200)
 
         elapsed = time.perf_counter() - started
 
@@ -68,14 +68,20 @@ def main() -> int:
     #   d. the elapsed time           `elapsed`, computed above
     #      Which part of it would a user actually feel?
     #
-    print("\n--- TODO 2: print the four things here ---\n")
+    print("Answer text:", reply.choices[0].message.content)
+    print("Finish reason:", reply.choices[0].finish_reason)
+    print("Prompt tokens:", reply.usage.prompt_tokens)
+    print("Completion tokens:", reply.usage.completion_tokens)
+    print("Elapsed time:", elapsed)
 
     # TODO 3. Close the trace.
     #   Call rec.finish(...) with:
     #     output=  the answer text
     #     outcome= "ok"
     #   It writes to artifacts/traces.jsonl by itself.
-    #
+
+    rec.finish(output=reply.choices[0].message.content, outcome="ok")
+
     #   Then run, from your repository root:
     #     python -m project.verify
     #   It should report one record in traces.jsonl. From week 4 onward

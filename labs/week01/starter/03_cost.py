@@ -64,10 +64,15 @@ def main() -> int:
     # deliberately leaves out and the largest one you will see today.
     #
     #   1. Free the model from memory:
-    #        subprocess.run(["ollama", "stop", SMALL.name])
     #   2. Time one call, exactly as `timed` does above.
     #   3. Time a second, identical call.
-    #
+
+    subprocess.run(["ollama", "stop", SMALL.name])
+    cold_reply, cold_secs = timed(client, prompt, SMALL.name)
+    warm_reply, warm_secs = timed(client, prompt, SMALL.name)
+
+    print(f"\nCold start: {cold_secs:.2f}s, warm start: {warm_secs:.2f}s")
+
     #   Record both. The first includes loading several gigabytes from disk,
     #   the second does not.
     #
@@ -83,7 +88,16 @@ def main() -> int:
     #
     #   Use project.prices.estimate(input_tokens, output_tokens, tier=...)
     #   and compute it on the "small" tier and on the "large" tier.
-    #
+
+    small_estimate = estimate(rows[1]["prompt_tokens"], rows[1]["completion_tokens"], tier="small")
+    large_estimate = estimate(rows[1]["prompt_tokens"], rows[1]["completion_tokens"], tier="large")
+    print(f"\nEstimate for small tier: {small_estimate.total} EUR, for large tier: {large_estimate.total} EUR")
+
+    for name, est in (("small", small_estimate), ("large", large_estimate)):
+        one_run = 200 * est.total
+        nightly_semester = 200 * 98 * est.total
+        print(f"{name:<6} one run: {one_run:.2f} EUR   nightly for semester: {nightly_semester:.2f} EUR")
+
     #   Print both, then write the two numbers in DECISIONS.md next to one
     #   sentence: which tier would you run nightly, which would you run
     #   before a release, and why not the same one for both.

@@ -47,14 +47,25 @@ def count_distinct(texts: list[str]) -> int:
 
     Start with exact string equality, which is what a naive unit test would
     assert. Return the number of distinct strings.
-
+    
     Then, before you move on, look at the strings themselves for the
     `open_list` cell and ask a harder question: how many are different in
     *wording* but identical in *meaning*? You cannot compute that here, and
     noticing that you cannot is the point. Week 10 spends the whole session
     on it.
     """
-    raise NotImplementedError("TODO 4: count the distinct strings")
+
+    hashmap = {}
+    count_distinct_str = 0
+    for text in texts:
+        if text in hashmap:
+            hashmap[text] += 1
+        else:
+            hashmap[text] = 1
+
+    return len(hashmap)
+
+    # raise NotImplementedError("TODO 4: count the distinct strings")
 
 
 def summarize(cell_name: str, texts: list[str], latencies: list[float]) -> dict:
