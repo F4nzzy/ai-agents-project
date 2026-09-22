@@ -83,7 +83,58 @@ Nightly, I would run the 'small' tier as it is cheaper, however before release I
 
 ### Deferred
 
-Nothing deferred. 
+Homework `--full` (eight live cells) and a short-prompt cold start were
+not in the 16 September commit. Completed 2026-09-22; see addendum.
+ 
+
+
+## Week 1 addendum — homework, MacBook Air, 2026-09-22
+
+**Run conditions.**
+
+- machine: Enriko's MacBook Air, Apple silicon (arm64)
+- model: qwen3:4b-instruct
+- served by: Ollama, one request at a time, locally
+- context_length this run: 4096 (preflight still green because it only
+  warns above 32768; set `OLLAMA_CONTEXT_LENGTH=8192` before week 7)
+- date: 2026-09-22
+
+Live `--full`, 6 runs per cell, no seed, OpenAI-format `/v1` calls.
+
+| cell | distinct (recording, n=12) | distinct (Mac, n=6) | median s (Mac) |
+| closed_short, t=0.0 | 1/12 | 1/6 | 0.29 |
+| closed_short, t=1.0 | 1/12 | 1/6 | 0.32 |
+| open_list, t=0.0 | 1/12 | 1/6 | 5.44 |
+| open_list, t=1.0 | 11/12 | 6/6 | 3.78 |
+| open_short, t=0.0 | 1/12 | 1/6 | 4.38 |
+| open_short, t=1.0 | 5/12 | 6/6 | 3.59 |
+| open_reasoning, t=0.0 | 1/12 | 2/6 | 16.30 |
+| open_reasoning, t=1.0 | 12/12 | 6/6 | 22.85 |
+
+The Mac agrees with the recording at temperature 0 on three of four
+prompts. It disagrees on `open_reasoning|t00` (2/6 vs 1/12). The
+recording pins `seed=42` at temperature 0; the lab call does not.
+
+Peaked cell at t=1.0 is still `closed_short`. Exact string tests would
+pass on the 1/6 cells and fail on every 6/6 cell.
+
+Short vs long, same model, same settings: 0.50 s (20 in, 3 out) vs
+25.28 s (38 in, 200 out). The long case hit `max_tokens=200`. Latency
+tracks output length (about 51× time vs 67× tokens).
+
+Short-prompt cold start after waiting for `/api/ps` to be empty:
+
+- cold call: 4.64 s
+- warm call: 0.33 s
+- ratio: 13.9×
+
+That is the number that was missing on 16 September. Do not switch SMALL
+and LARGE inside one request.
+
+Euro estimates for a 200-case nightly set over 98 nights, using this
+long case, price list 2026-08-10: small 0.03 EUR per run / 3.28 EUR
+semester; large 2.49 EUR per run / 244.14 EUR semester. Estimates, not
+measurements. Local cost zero.
 
 
 
