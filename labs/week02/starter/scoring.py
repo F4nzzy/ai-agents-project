@@ -15,6 +15,7 @@ together.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 
 FIELDS = ("category", "urgency", "due_date", "quote")
 
@@ -71,7 +72,28 @@ def score_one(record, gold, document_text: str) -> dict[str, FieldResult]:
 
     Return a dict keyed by field name.
     """
-    raise NotImplementedError("TODO 3: score the four fields")
+    results = {}
+
+    results["category"] = FieldResult(
+        correct=record.category == gold.category,
+        got=record.category, expected=gold.category)
+
+    results["urgency"] = FieldResult(
+        correct=record.urgency == gold.urgency,
+        got=record.urgency, expected=gold.urgency)
+
+    expected_date = date.fromisoformat(gold.due_date) if gold.due_date else None
+    results["due_date"] = FieldResult(
+        correct=record.due_date == expected_date,
+        got=record.due_date, expected=expected_date)
+
+    quote_ok = bool(record.quote) and record.quote in document_text
+    results["quote"] = FieldResult(
+        correct=quote_ok, got=record.quote,
+        expected="(any verbatim span from the source)",
+        note="" if quote_ok else "not found verbatim in source")
+
+    return results
 
 
 # --------------------------------------------------------------------------
@@ -92,7 +114,22 @@ def score_all(records, golds, docs) -> Scoreboard:
     you will be asked which records failed and why, not what your average
     was.
     """
-    raise NotImplementedError("TODO 4: aggregate into a Scoreboard")
+    board = Scoreboard(total=len(docs))
+    for record, doc in zip(records, docs):
+        gold = golds[doc.id]
+        if record is None:
+            board.invalid += 1
+            board.failures.append((doc.id, "*", "invalid record: failed schema validation"))
+            continue
+        results = score_one(record, gold, doc.text)
+        for f in FIELDS:
+            r = results[f]
+            if r.correct:
+                board.hits[f] += 1
+            else:
+                note = r.note or f"got {r.got!r}, expected {r.expected!r}"
+                board.failures.append((doc.id, f, note))
+    return board
 
 
 # --------------------------------------------------------------------------

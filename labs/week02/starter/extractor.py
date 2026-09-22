@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError
@@ -49,12 +50,21 @@ class ServiceRequest(BaseModel):
     category: Literal["access", "hardware", "billing", "facilities", "other"]
     urgency: Literal["urgent", "standard", "info"]
 
-    # TODO 1a: due_date. Give it a type that can hold a date or nothing,
-    #          and a Field(description=...) stating the convention. The
-    #          description is sent to the model, so it is prompt engineering
-    #          rather than documentation.
-    # TODO 1b: quote. A string, with a description that says "verbatim" in
-    #          words a model will act on. Consider a max_length.
+    due_date: date | None = Field(
+        default=None,
+        description="ISO 8601 date (YYYY-MM-DD) if the message states an "
+                    "explicit calendar date, in any language or format. "
+                    "Dates written as DD/MM/YYYY are European (day before "
+                    "month). Use null when the message states no date, or "
+                    "only a relative expression such as 'as soon as "
+                    "possible' or 'before the end of the month' rather "
+                    "than a calendar date. Never invent a date.")
+    quote: str = Field(
+        max_length=200,
+        description="A span copied verbatim, character for character, "
+                    "from the original message that supports the urgency "
+                    "decision. Do not translate or paraphrase it, even if "
+                    "the message is in French or German.")
 
 
 # --------------------------------------------------------------------------
@@ -62,18 +72,22 @@ class ServiceRequest(BaseModel):
 # --------------------------------------------------------------------------
 
 SYSTEM_ZERO_SHOT = """\
-TODO 2a: write the system prompt.
+You extract a structured service request record from a message sent to \
+the help desk of Remerbaach, a Luxembourg commune. Messages arrive in \
+English, French, or German; extract regardless of language.
 
-It has to state, in words a model will follow:
-  - what the job is
-  - that messages arrive in English, French, or German
-  - the allowed values for category and for urgency
-  - the due_date convention, including what counts as "no date"
-  - that quote must be copied character for character, not translated
-
-Write the conventions here even though they are also in the schema. The
-schema constrains the shape of the answer. The prompt is what tells the
-model how to decide. Neither one does the other's job.
+For each message, decide:
+  - category: one of "access", "hardware", "billing", "facilities", \
+"other"
+  - urgency: one of "urgent", "standard", "info"
+  - due_date: an ISO 8601 date (YYYY-MM-DD) only if the message states an \
+explicit calendar date, in any language or format. Dates written as \
+DD/MM/YYYY are European (day before month). If the message states no \
+date, or only a relative expression such as "as soon as possible" or \
+"before the end of the month", set due_date to null. Never invent a date.
+  - quote: a short span copied verbatim, character for character, from \
+the original message that supports your urgency decision. Do not \
+translate or paraphrase it, even if the message is in French or German.
 """
 
 
@@ -89,7 +103,10 @@ def build_messages(system: str, document_text: str) -> list[dict]:
     instruction and the data are in the same place, a document that contains
     an instruction is indistinguishable from your instruction.
     """
-    raise NotImplementedError("TODO 2b: return the two messages")
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": document_text},
+    ]
 
 
 # --------------------------------------------------------------------------
