@@ -61,10 +61,31 @@ def few_shot_block(n: int = 4) -> str:
     stop copying verbatim, and the field that scored perfectly zero-shot
     will get worse. Look at the recording if you want to see that happen.
     """
-    raise NotImplementedError("TODO 5: build the example block")
+    chosen_quotes = {
+        "EX-01": "I can still get in through the main door, so it is not "
+                 "blocking me.",
+        "EX-04": "For information only",
+        "EX-03": "Ersatz waere bis zum 20/09/2026 gut.",
+        "EX-02": "Intervention immediate necessaire.",
+    }
+
+    lines = ["Examples of correctly extracted records:\n"]
+    for doc, gold in EXAMPLE_POOL:
+        if doc.id not in chosen_quotes:
+            continue
+        answer = {
+            "category": gold.category,
+            "urgency": gold.urgency,
+            "due_date": gold.due_date,
+            "quote": chosen_quotes[doc.id],
+        }
+        lines.append(f"Message: {doc.text}")
+        lines.append(f"Answer: {json.dumps(answer, ensure_ascii=False)}")
+        lines.append("")
+    return "\n".join(lines)
 
 
-SYSTEM_FEW_SHOT = SYSTEM_ZERO_SHOT + "\n"   # + few_shot_block(), once written
+SYSTEM_FEW_SHOT = SYSTEM_ZERO_SHOT + "\n" + few_shot_block()
 
 
 def main() -> int:
@@ -81,6 +102,16 @@ def main() -> int:
         DOCS, GOLD)
 
     print(compare(zero_board, few_board, "zero-shot", "few-shot"))
+
+    if zero_board.failures:
+        print("\nzero-shot failures worth reading:")
+        for doc_id, fieldname, note in zero_board.failures[:10]:
+            print(f"  {doc_id}  {fieldname:<9} {note}")
+
+    if few_board.failures:
+        print("\nfew-shot failures worth reading:")
+        for doc_id, fieldname, note in few_board.failures[:10]:
+            print(f"  {doc_id}  {fieldname:<9} {note}")
 
     zero_tok = sum(m["prompt_tokens"] for m in zero_metas)
     few_tok = sum(m["prompt_tokens"] for m in few_metas)

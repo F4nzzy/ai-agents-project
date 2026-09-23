@@ -24,6 +24,7 @@ from extractor import (PROMPT_VERSION, SYSTEM_ZERO_SHOT, get_client,
                        run_variant)
 
 from project.contracts import GoldCase, GoldSet
+from project.prices import estimate
 from project.trace import write_json
 
 EXPECTED_BEHAVIOR = {
@@ -80,6 +81,11 @@ def main() -> int:
         "prompt_version": PROMPT_VERSION,
         "hits": board.hits, "total": board.total, "invalid": board.invalid,
     })
+
+    avg_prompt = sum(m["prompt_tokens"] for m in metas) / len(metas)
+    avg_completion = sum(m["completion_tokens"] for m in metas) / len(metas)
+    est = estimate(round(avg_prompt), round(avg_completion), tier="small")
+    print(est.summary())
 
     # TODO 7. Write the gold set into the project spine.
     #

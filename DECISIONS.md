@@ -84,3 +84,88 @@ Nightly, I would run the 'small' tier as it is cheaper, however before release I
 ### Deferred
 
 Nothing deferred. 
+
+
+
+## Week 2
+
+**Run conditions.** model: qwen3:4b-instruct | temperature: 0.0 | prompt version: week02-zero-shot-v1 | served locally | date: 2026-09-23 | scored on: my own machine
+
+### 1. The output contract
+
+The conventions I chose, and why:
+
+- due_date, when the message states no date: null
+- due_date, when the message states only a relative expression: null
+- quote, and what "verbatim" means in my scorer: exact substring match
+- what my scorer does with a record that failed validation: counts it as wrong on all fields. 
+
+A scorer that skips the records it could not parse reports a number that improves as the model gets worse, because a model that fails validations more often will have less records left to be wrong with. 
+
+### 2. Zero-shot, per field
+
+| field | correct | of |
+| category | 7 | 10 |
+| urgency | 10 | 10 |
+| due_date | 6 | 10 |
+| quote | 9 | 10 |
+| invalid records | 0 | 10 |
+
+My prediction, written before block 3: examples will help most on due date because the model invents a date for when the gold answer is None.
+
+### 3. Few-shot
+
+Examples chosen, and the job each one does:
+
+| example | why it is in the block | field it should move |
+| 1 | should be categorised as 'access' instead of hardware | category |
+| 4 | mentions 'next week' but the due date is still None | due_date |
+| 3 | to extract the date from a given date instead of always using None | None |
+| 2 | to reinforce the multi-language accepted inputs | None |
+
+| field | zero-shot | few-shot | move |
+| category | 7 | 7 | 0 |
+| urgency | 10 | 10 | 0 |
+| due_date | 6 | 9 | +3 |
+| quote | 9 | 10 | +1 |
+
+### 4. What got worse
+
+Nothing got worse. We checked by analyzing the 'move' column, where all values either showed a neutral move (+0) or a positive change (+1, +3), showing that the results either stayed the same or got better. 
+
+For req-08, the failure changed from 'access' to 'facilities' when it expects 'hardware'
+
+### 5. What the examples cost
+
+- extra input tokens per call: 306
+- per thousand calls: 306000
+- estimated euros per thousand calls on the small tier: 0.06, against the
+  price list dated 2026-08-10. Estimate, not a measurement.
+
+### 6. Ship it or not
+
+I would ship the few-shot variant. This is because the due_date was improved by +3 and the quote was improved by +1 and everything else stayed neutral. This shows that nothing got worse, only better or the same. The only thing worth noting is that whilst the count didnt change, the failure changed shape for REQ-08. REQ-08 went from "access"
+to "facilities", which are both wrong. 
+
+Ten records is not enough to be confident that few-shot is 100% better than zero-shot, and if a larger gold set showed these results to be an anomaly then this would change my mind about which is better. 
+
+### Sensitivity variant
+
+Variant assigned: [ ]. What I changed: [ ]. What moved: [ ].
+
+[If nothing moved, say so. A knob that changes nothing measurable is a real
+result, and it tells the room which knobs are worth arguing about.]
+
+### The gold set
+
+Ten cases written to `artifacts/goldset.json`, tagged by language.
+
+One thing my scorer cannot currently detect:
+
+[This is the most valuable line on the page. An example: "our scorer cannot
+tell a correctly formatted date that is simply the wrong date from a
+correctly extracted one, because it only compares strings."]
+
+### Deferred
+
+nothing deferred
