@@ -202,10 +202,25 @@ Ten records is not enough to be confident that few-shot is 100% better than zero
 
 ### Sensitivity variant
 
-Variant assigned: [ ]. What I changed: [ ]. What moved: [ ].
+### Sensitivity variant
 
-[If nothing moved, say so. A knob that changes nothing measurable is a real
-result, and it tells the room which knobs are worth arguing about.]
+Variant assigned: none (instructor did not assign a group). Measured
+`role` on 2026-09-28, MacBook Air, `qwen3:4b-instruct`, live, not replay.
+
+What I changed: prepended "You are a senior service desk analyst." to the
+few-shot system prompt and nothing else.
+
+What moved: nothing. Baseline and role both scored category 7/10,
+urgency 10/10, due_date 9/10, quote 10/10, invalid 0. Per-language field
+errors stayed en 3, fr 1, de 0. The persona added 80 tokens over 10
+calls (8 per call) and moved no field.
+
+That matches the prediction written before the live run: on closed label
+sets behind a schema, a persona should move nothing or at most one
+count. Replay also printed +0, but that is not evidence — the fixture
+returns the reference prompt's answers. The live table is the
+measurement. A knob that costs tokens and changes nothing is still a
+result: it is not worth arguing about on this task.
 
 ### The gold set
 
@@ -213,10 +228,14 @@ Ten cases written to `artifacts/goldset.json`, tagged by language.
 
 One thing my scorer cannot currently detect:
 
-[This is the most valuable line on the page. An example: "our scorer cannot
-tell a correctly formatted date that is simply the wrong date from a
-correctly extracted one, because it only compares strings."]
+The scorer cannot tell a correctly formatted date that is simply the
+wrong date from a correctly extracted one, because it only compares ISO
+strings. It also cannot tell a wrong category that is a plausible
+neighbour (REQ-08 went from access to facilities, both wrong for
+hardware) except by reading the failure line, not the counts.
 
 ### Deferred
 
-nothing deferred
+Sensitivity was unassigned; `role` was measured rather than leaving the
+block empty. The optional 7B comparison from "if you finish early" was
+not run.
