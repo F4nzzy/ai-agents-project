@@ -243,43 +243,50 @@ nothing deferred
 
 ## Week 3
 
-**Run conditions.** classifier model: [ ] | answering model: [ ] |
-temperature: 0.0 | served locally | date: [YYYY-MM-DD] | scored on: [the
-recording / my own machine]
+**Run conditions.** classifier model: qwen3:4b-instruct | answering model:
+qwen3:4b-instruct | temperature: 0.0 | served locally | date: 2026-09-29 |
+scored on: my own machine
 
 ### 1. The five route definitions
 
 | route | definition, one sentence, in terms of what the help desk must do |
-| request | |
-| info | |
-| status | |
-| complaint | |
-| other | |
+| request | log something broken, missing, or needed, and act to fix, obtain, or provide it |
+| info | must answer a question about a service, procedure, opening time, or form. It gives information, not an action. |
+| status | must look up and report progress on something already reported, whether or not a reference number is given, without the sender expressing dissatisfaction. |
+| complaint | must acknowledge dissatisfaction with the service itself |
+| other |  must not act on the message itself |
 
 My convention for the four ambiguous queries:
 
-[Two defensible conventions exist. Neither is discoverable from the data.
-What matters is that yours was written down before you measured, not which
-one you picked.]
+I adopted the convention already stated in `queries.py`'s `AMBIGUITY_NOTE`
+rather than writing my own
 
-Do my definitions match the ones in `queries.py`? [yes / no, and if no, what
-that does to my accuracy number]
+Do my definitions match the ones in `queries.py`? Yes
 
 ### 2. The policy layer
 
-Before choosing a threshold, the confidence values I saw were: min [ ],
-max [ ], [ ] distinct values across 24 queries.
+Before choosing a threshold, the confidence values I saw were: min 0.0,
+max 0.999, 5 distinct values across 24 queries (0.0, 0.95, 0.98, 0.99,
+0.999).
 
-- confidence floor: [ ], because [ ]
-- evidence check: [what I do when the span is not in the message], because [ ]
-- safe default: [ ], because that specialist [ ]
+- confidence floor: 0.9, because the legitimate cluster sits at 0.95 and
+  above; a floor below that would reject nothing, and a floor above it
+  would risk rejecting correct high-confidence answers
+- evidence check: reroute to the safe default when `decision.evidence` is
+  not a verbatim substring of the message, because a route I cannot audit
+  is not trustworthy even when the label happens to be right.
+- safe default: `info`, because that specialist only answers a question
+  and takes no action on the sender's behalf
 
-How often each check fired: below_threshold [ ], evidence_not_verbatim [ ],
-invalid_decision [ ].
+How often each check fired: below_threshold 1, evidence_not_verbatim 0,
+invalid_decision 0.
 
-[If a check fired zero times, say what that tells you. A threshold that
-never fires is either a very good classifier or a useless signal, and the
-confidence distribution above tells you which.]
+Both `evidence_not_verbatim` and `invalid_decision` fired zero times,
+which here means a well-behaved classifier rather than a useless
+check. `below_threshold` fired exactly once, and on the one case where the
+model was actually correct despite the low confidence. Every real
+misclassification happened at high confidence instead. So the confidence
+signal here tracks the model's own uncertainty, not its accuracy.
 
 ### 3. Route accuracy
 

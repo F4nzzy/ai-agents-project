@@ -55,7 +55,30 @@ def classify(client, text: str, model: str = SMALL.name,
     what makes it cheap enough to be worth adding, and it is what makes its
     output inspectable.
     """
-    raise NotImplementedError("TODO 2: the classifying call")
+    t0 = time.perf_counter()
+    reply = client.chat.completions.create(
+        model=model,
+        temperature=temperature,
+        max_tokens=300,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {"name": "decision",
+                            "schema": Decision.model_json_schema()},
+        },
+        messages=[{"role": "system", "content": SYSTEM_ROUTER},
+                  {"role": "user", "content": text}],
+    )
+    raw = reply.choices[0].message.content
+    meta = {
+        "seconds": time.perf_counter() - t0,
+        "prompt_tokens": reply.usage.prompt_tokens,
+        "completion_tokens": reply.usage.completion_tokens,
+        "raw": raw,
+    }
+    try:
+        return Decision.model_validate_json(raw), meta
+    except ValidationError:
+        return None, meta
 
 
 # --------------------------------------------------------------------------
@@ -68,7 +91,7 @@ def classify(client, text: str, model: str = SMALL.name,
 # exercise exists to catch. Run the classifier over the twenty four queries
 # first, print the confidences, and then decide. On one of the two course
 # models the answer will surprise you.
-CONFIDENCE_FLOOR = None      # TODO 3a
+CONFIDENCE_FLOOR = 0.9      # TODO 3a
 
 # TODO 3b. Where does anything the policy rejects go?
 #
@@ -76,7 +99,7 @@ CONFIDENCE_FLOOR = None      # TODO 3a
 # DOES on the sender's behalf, and pick the one whose actions are easiest to
 # undo. One of the five logs a ticket, one escalates to a human, and one
 # only answers. That should decide it.
-SAFE_DEFAULT = None          # TODO 3b
+SAFE_DEFAULT = "info"        # TODO 3b
 
 
 def apply_policy(decision: Decision | None, text: str) -> Routed:
@@ -102,7 +125,21 @@ def apply_policy(decision: Decision | None, text: str) -> Routed:
     it None when the decision stood. You will count these at the checkpoint,
     and "the policy fired sometimes" is not a count.
     """
-    raise NotImplementedError("TODO 3: the policy layer")
+    if decision is None:
+        placeholder = Decision(route=SAFE_DEFAULT, confidence=0.0, evidence="")
+        return Routed(decision=placeholder, applied_route=SAFE_DEFAULT,
+                     policy_fired="invalid_decision", evidence_ok=False)
+
+    if decision.evidence not in text:
+        return Routed(decision=decision, applied_route=SAFE_DEFAULT,
+                     policy_fired="evidence_not_verbatim", evidence_ok=False)
+
+    if decision.confidence < CONFIDENCE_FLOOR:
+        return Routed(decision=decision, applied_route=SAFE_DEFAULT,
+                     policy_fired="below_threshold", evidence_ok=True)
+
+    return Routed(decision=decision, applied_route=decision.route,
+                  policy_fired=None, evidence_ok=True)
 
 
 # --------------------------------------------------------------------------
