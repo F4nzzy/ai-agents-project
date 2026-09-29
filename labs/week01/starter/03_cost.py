@@ -67,11 +67,33 @@ def main() -> int:
     #   2. Time one call, exactly as `timed` does above.
     #   3. Time a second, identical call.
 
-    subprocess.run(["ollama", "stop", SMALL.name])
-    cold_reply, cold_secs = timed(client, prompt, SMALL.name)
-    warm_reply, warm_secs = timed(client, prompt, SMALL.name)
-
-    print(f"\nCold start: {cold_secs:.2f}s, warm start: {warm_secs:.2f}s")
+    subprocess.run(["ollama", "stop", SMALL.name], check=False)
+    import json as _json
+    import urllib.request as _url
+    for _ in range(40):
+        loaded = _json.loads(_url.urlopen("http://127.0.0.1:11434/api/ps").read())
+        if not loaded.get("models"):
+            break
+        time.sleep(0.25)
+    cold_reply, cold_secs = timed(client, SHORT, SMALL.name)
+    warm_reply, warm_secs = timed(client, SHORT, SMALL.name)
+    ratio_cold = cold_secs / max(warm_secs, 1e-9)
+    print(f"\ncold   {cold_secs:>6.2f}s  in {cold_reply.usage.prompt_tokens:>4} "
+          f"out {cold_reply.usage.completion_tokens:>4}")
+    print(f"warm   {warm_secs:>6.2f}s  in {warm_reply.usage.prompt_tokens:>4} "
+          f"out {warm_reply.usage.completion_tokens:>4}")
+    print(f"cold/warm ratio {ratio_cold:.1f}x")
+    rows.append({
+        "case": "cold", "model": SMALL.name, "seconds": round(cold_secs, 3),
+        "prompt_tokens": cold_reply.usage.prompt_tokens,
+        "completion_tokens": cold_reply.usage.completion_tokens,
+    })
+    rows.append({
+        "case": "warm", "model": SMALL.name, "seconds": round(warm_secs, 3),
+        "prompt_tokens": warm_reply.usage.prompt_tokens,
+        "completion_tokens": warm_reply.usage.completion_tokens,
+        "cold_to_warm_ratio": round(ratio_cold, 2),
+    })
 
     #   Record both. The first includes loading several gigabytes from disk,
     #   the second does not.

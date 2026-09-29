@@ -62,8 +62,21 @@ def build_system(variant: str) -> str:
                    needed to attribute it. Week 13 asks who a system works
                    for, and this is what it costs to answer with evidence.
     """
-    raise NotImplementedError("TODO 8: build the variant")
+    import importlib.util
+    from pathlib import Path
 
+    path = Path(__file__).resolve().parent / "02_few_shot.py"
+    spec = importlib.util.spec_from_file_location("week02_few_shot", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    base = mod.SYSTEM_FEW_SHOT
+
+    if variant == "baseline":
+        return base
+    if variant == "role":
+        return "You are a senior service desk analyst.\n" + base
+    raise NotImplementedError(
+        f"this group measured role, not {variant!r}")
 
 def main() -> int:
     ap = argparse.ArgumentParser()

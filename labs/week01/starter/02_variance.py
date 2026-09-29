@@ -37,6 +37,13 @@ LIVE_CELLS = {
     "open_list": "List three responsibilities of a Luxembourg commune "
                  "administration. Be concise.",
 }
+HOMEWORK_CELLS = {
+    "open_short": "In one sentence, why is Luxembourg City important to the "
+                  "European Union?",
+    "open_reasoning": "A resident asks whether they need a parking vignette "
+                      "if they park in a visitor bay. Explain what "
+                      "information you would need before answering, and why.",
+}
 LIVE_RUNS = 6
 
 
@@ -100,8 +107,11 @@ def from_replay(full: bool) -> list[dict]:
 def from_live(full: bool) -> list[dict]:
     from openai import OpenAI
     client = OpenAI(base_url=BASE_URL, api_key=API_KEY)
+    prompts = dict(LIVE_CELLS)
+    if full:
+        prompts.update(HOMEWORK_CELLS)
     rows = []
-    for pname, prompt in LIVE_CELLS.items():
+    for pname, prompt in prompts.items():
         for tname, temp in (("t00", 0.0), ("t10", 1.0)):
             texts, lats = [], []
             for _ in range(LIVE_RUNS):
