@@ -67,7 +67,33 @@ def score_routes(results, queries) -> RouteScore:
     wrong, whether the evidence was verbatim, which policy check fired, the
     confidence value, and whether the query was one of the ambiguous four.
     """
-    raise NotImplementedError("TODO 5: score the routes")
+    s = RouteScore()
+    s.total = len(queries)
+    for routed, q in zip(results, queries):
+        gold = q.route
+        applied = routed.applied_route
+        correct = applied == gold
+
+        hit, n = s.per_route.get(gold, [0, 0])
+        s.per_route[gold] = [hit + (1 if correct else 0), n + 1]
+
+        if not correct:
+            s.confusion[(gold, applied)] += 1
+
+        if routed.policy_fired:
+            s.policy_fired[routed.policy_fired] += 1
+
+        if routed.evidence_ok:
+            s.evidence_ok += 1
+
+        s.confidences.append(routed.decision.confidence)
+
+        if q.ambiguous:
+            s.ambiguous_total += 1
+            if correct:
+                s.ambiguous_hits += 1
+
+    return s
 
 
 # --------------------------------------------------------------------------

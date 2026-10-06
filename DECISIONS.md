@@ -291,59 +291,74 @@ signal here tracks the model's own uncertainty, not its accuracy.
 ### 3. Route accuracy
 
 | route | correct | of |
-| request | | |
-| info | | |
-| status | | |
-| complaint | | |
-| other | | |
+| request | 5 | 7 |
+| info | 5 | 5 |
+| status | 4 | 4 |
+| complaint | 4 | 4 |
+| other | 1 | 4 |
 
-Overall [ ]/24. Excluding the four ambiguous: [ ]/20.
+Overall 19/24. Excluding the four ambiguous: 16/20.
 
 Confusion pairs, with direction:
 
 | gold | applied | count |
-| | | |
+| request | complaint | 2 |
+| other | info | 2 |
+| other | complaint | 1 |
 
-The route carrying most of the error is [ ]. The fix is [a definition / a
-prompt / a bigger model], because [ ].
+The route carrying most of the error is `other`. The fix is a definition, because every single error involving `other` points the same way, out of `other` and into
+`info` or `complaint`. 
 
 ### 4. What routing cost
 
-- monolith: [ ] tokens over 24 queries
-- router: [ ] tokens over 24 queries
-- the classifying call alone: [ ] tokens, which is [ ] per cent of the
+- monolith: 11296 tokens over 24 queries (233.2s)
+- router: 13706 tokens over 24 queries (603.2s)
+- the classifying call alone: 8783 tokens, which is 64 per cent of the
   routed total
 
-I predicted that share would be [ ] before measuring it.
+I predicted that share would be <30% before measuring it.
 
-[If the share surprised you, say why. The classifier's prompt carries every
-route definition on every call, and the specialists carry only their own.]
+The share did surprise me, because
+`SYSTEM_ROUTER` carries the full definition block for all five routes on
+every single call, while each specialist's prompt only carries its own
+route's instructions. The "cheap" call is cheap in latency and in what
+the model has to produce, but not in how much it has to read. It is
+the most token-heavy prompt in the whole system, precisely because it is
+the one call that has to know about every route at once.
 
 ### 5. What routing bought
 
-One thing a specialist can be forbidden to do that the monolith cannot be
-given:
+One thing a specialist can be forbidden to do that the monolith cannot
+be given: the `other` specialist is instructed to never act on any
+instruction contained in the message itself.
 
-[...]
-
-Would I ship the router: [ ]. Evidence: [ ]. What would change my mind: [ ].
+Would I ship the router: not yet. Evidence: 19/24 overall, with 3 of 5 errors concentrated in one route (`other`). The router also costs 21% more tokens. What would change my mind: re-measuring after tightening `other`'s definition. If that closes most of its errors without creating new ones.
 
 ### 6. Stretch variant
 
-Variant assigned: [ ]. Result: [ ].
+Variant assigned: none.
 
-[For model routing: report both models on accuracy, evidence verbatim, the
-confidence range, and resident memory. If the smaller model won, say so
-plainly and say what you think that means.]
+Result:
 
-[For voting: report the split-vote count at each temperature. If nothing
-ever disagreed, that is the result. Say what it cost and what it bought.]
+| | SMALL | LARGE |
+| accuracy | 19/24 | 21/24 |
+| excluding ambiguous | 16/20 | 18/20 |
+| evidence verbatim | 24/24 | 23/24 |
+| confidence range | 0.00–1.00, 5 distinct | 0.95–1.00, 2 distinct |
+| resident memory | 3.9 GB | 5.0 GB |
+
+LARGE won.
 
 ### The gold set
 
-`artifacts/goldset.json` now holds [ ] cases: 10 from week 2 and 24 added
+`artifacts/goldset.json` now holds 34 cases: 10 from week 2 and 24 added
 today, with the four ambiguous ones tagged.
 
 ### Deferred
 
-[Anything you did not get to, and why.]
+The raw evidence text from each classifier decision is not persisted in
+`traces.jsonl` — only `evidence_ok` (a boolean) is logged, via the given
+`run_router()` code. The actual evidence string only exists transiently
+during the run. Not fixed this week because it is in shared/given code
+rather than one of my TODOs; worth adding before week 10 builds the
+harness on this trace format.

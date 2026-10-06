@@ -131,28 +131,88 @@ def main() -> int:
     })
 
     # TODO 6. Grow the gold set.
-    #
-    #   Week 2 wrote ten extraction cases to artifacts/goldset.json. Add the
-    #   twenty four routing cases to the SAME file rather than starting a
-    #   second one. Week 10 builds one harness over one gold set, and a
-    #   system with two gold sets has two definitions of correct.
-    #
-    #   Load it with project.fixtures.load_or_reference, which hands you the
-    #   reference copy if you do not have your own yet. Print which you got,
-    #   and if it says 'reference', record that in DECISIONS.md.
-    #
-    #   For each query, a GoldCase with week_added=3, expected={"route": ...},
-    #   an expected_behavior sentence, and slice_tags carrying the language,
-    #   the route, and the tag "ambiguous" for the four that have no correct
-    #   answer.
-    #
-    #   That last tag matters. Those four cases have only a documented
-    #   convention, and tagging them lets week 10 report them as their own
-    #   slice instead of counting them as failures. A gold set that pretends
-    #   every case has one right answer will misreport the four cases you
-    #   understand best.
-    #
-    #   Skip any case_id already in the file, so this is safe to re-run.
+    EXPECTED_BEHAVIOR = {
+        "Q-01": "routes to request because the door lockout is broken and "
+                "needs someone to act immediately",
+        "Q-02": "routes to request because the printer fault needs fixing "
+                "by a stated deadline",
+        "Q-03": "routes to request because the broken heating needs "
+                "fixing before the stated session date",
+        "Q-04": "routes to request because the mailbox access needs to "
+                "be added, an action item",
+        "Q-05": "routes to request because a new colleague needs an "
+                "account and access created",
+        "Q-06": "routes to request because portal access is broken and a "
+                "confirmation letter is needed before an appointment",
+        "Q-07": "routes to info because it only asks about opening "
+                "hours, no action needed",
+        "Q-08": "routes to info because it asks which documents are "
+                "needed for a move registration",
+        "Q-09": "routes to info because it asks whether a residence "
+                "certificate request can be done online",
+        "Q-10": "routes to info because it asks which form to use, no "
+                "action needed from the help desk",
+        "Q-11": "routes to info because it asks whether the help desk "
+                "handles a particular service",
+        "Q-12": "routes to status because it chases an existing reported "
+                "issue by reference number, without complaint",
+        "Q-13": "routes to status under our convention because it "
+                "chases an existing account-creation request without "
+                "expressing dissatisfaction, even though a classifier "
+                "keying on 'creation de compte' could misread it as a "
+                "new request",
+        "Q-14": "routes to status because it asks for an update on an "
+                "existing reported issue by reference number",
+        "Q-15": "routes to status because it checks whether an existing "
+                "ticket is still open, without complaint",
+        "Q-16": "routes to complaint under our convention because it "
+                "both reports an unresolved fault and explicitly "
+                "expresses dissatisfaction about the lack of response, "
+                "and the handling must be acknowledged first",
+        "Q-17": "routes to complaint because it expresses dissatisfaction "
+                "about an unannounced early closure",
+        "Q-18": "routes to complaint under our convention because it "
+                "both reports a recurring technical fault and expresses "
+                "dissatisfaction about being ignored, and the handling "
+                "must be acknowledged first",
+        "Q-19": "routes to complaint because it expresses dissatisfaction "
+                "about the tone of a previous reply, not a new fault",
+        "Q-20": "routes to other because it asks for legal advice the "
+                "help desk cannot give",
+        "Q-21": "routes to other because it is a tax dispute for a "
+                "different department",
+        "Q-22": "routes to other because it is a prompt-injection "
+                "attempt aimed at the system, not a genuine help desk "
+                "message",
+        "Q-23": "routes to other because it is unsolicited spam",
+        "Q-24": "routes to request under our convention because the "
+                "action (arranging a lift repair) outranks the "
+                "secondary question about responsibility",
+    }
+
+    reference_set, source = load_or_reference("goldset.json", lab=LAB)
+    print(f"gold set source: {source}")
+    if source == "reference":
+        print("  using the reference goldset.json; record this in "
+              "DECISIONS.md")
+
+    existing_ids = {c["case_id"] for c in reference_set["cases"]}
+    new_cases = []
+    for q in QUERIES:
+        if q.id in existing_ids:
+            continue
+        tags = [q.lang, q.route] + (["ambiguous"] if q.ambiguous else [])
+        new_cases.append(GoldCase(
+            case_id=q.id, week_added=3, question=q.text,
+            expected={"route": q.route},
+            expected_behavior=EXPECTED_BEHAVIOR[q.id],
+            slice_tags=tags,
+        ))
+
+    all_cases = reference_set["cases"] + new_cases
+    write_json("artifacts/goldset.json", GoldSet(cases=all_cases))
+    print(f"gold set now holds {len(all_cases)} cases "
+          f"({len(new_cases)} added this run)")
 
     # TODO 7. Answer four questions in DECISIONS.md. The comparison is the
     # deliverable, not the two running systems.

@@ -51,7 +51,25 @@ def variant_model(client) -> None:
     tells you something about your threshold from TODO 3a that you cannot
     unsee.
     """
-    raise NotImplementedError("TODO 8: variant A, model routing")
+    results = {}
+    for spec in (SMALL, LARGE):
+        routed = []
+        for q in QUERIES:
+            decision, _ = classify(client, q.text, model=spec.name)
+            routed.append(apply_policy(decision, q.text))
+        s = score_routes(routed, QUERIES)
+        print(report(s, spec.name))
+        print(f"  resident memory: {spec.resident_gb} GB\n")
+        results[spec.name] = {
+            "hits": s.hits, "total": s.total,
+            "unambiguous": [s.unambiguous_hits, s.unambiguous_total],
+            "evidence_ok": s.evidence_ok,
+            "confidence_min": min(s.confidences) if s.confidences else None,
+            "confidence_max": max(s.confidences) if s.confidences else None,
+            "confidence_distinct": len(set(s.confidences)),
+            "resident_gb": spec.resident_gb,
+        }
+    write_json("artifacts/week03_stretch_model.json", results)
 
 
 def variant_voting(client, k: int = 3) -> None:
