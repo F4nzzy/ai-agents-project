@@ -362,3 +362,71 @@ The raw evidence text from each classifier decision is not persisted in
 during the run. Not fixed this week because it is in shared/given code
 rather than one of my TODOs; worth adding before week 10 builds the
 harness on this trace format.
+
+
+
+
+
+## Week 5
+
+**Run conditions.** model: qwen2.5:7b (LARGE) | framework: Pydantic AI
+2.56.0 | runs per architecture: [] | served locally | date: 2026-10-15 | table from:
+[]
+
+### 1. The plan schema
+
+What I tried first, and what happened:
+
+I tried the obvious schema, a `Step` model nested inside `Plan` as `steps: list[Step]`.
+Every attempt failed with `UnexpectedModelBehavior: Exceeded maximum
+output retries (3)`.
+
+What I shipped, and why it is shaped that way:
+
+`Plan` has `goal: str`, `steps: list[str]`, and `suspect_file: str`.
+Every field is kept as plain and unconstrained as possible, because
+structure and nesting are exactly what just broke reliability.
+
+### 2. The validator
+
+| check | what it catches |
+| step count outside 2-6 | a plan too thin to be useful, or too long to inspect in fifteen seconds |
+| suspect_file not a known file | the model naming a file that does not exist in the repo |
+| no step mentions tests | a plan with no verification step, which has no way of knowing whether it worked |
+| a step edits a test | a plan trying to make the suite pass by changing the test instead of the bug (`apply_fix` refuses this anyway) |
+
+On a failed check my system refuses, because `validate_plan` only
+reports `(ok, problems)`.
+
+### 3. The three-way table
+
+| architecture | green | tokens (mean) | seconds (mean) |
+| A baseline | /3 | | |
+| B planner | /3 | | |
+| C planner + reviewer | /3 | | |
+
+### 4. Why the baseline fails
+
+[Not "the model is too small". Look at what changed between A and B: it is
+not the model and it is not the prompt. Name it.]
+
+### 5. The reviewer
+
+Verdicts across my runs: [ ] approve, [ ] reject.
+
+Would I ship it: [ ]. Extra cost: [ ] tokens, [ ] seconds per run.
+
+The case where it would earn its cost:
+
+[...]
+
+### 6. What my verifier cannot catch
+
+[The most valuable line on this page. The test suite is free, fast, and
+deterministic, and it still only checks the cases somebody wrote a test for.
+Name a change that would make the suite green and still be wrong. Week 10
+comes back for this.]
+
+### Deferred
+
+[Anything you did not get to, and why.]

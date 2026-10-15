@@ -48,9 +48,8 @@ class Plan(BaseModel):
     """
 
     goal: str
-    # TODO 1a: steps. Flat. What is the simplest type that still says
-    #          "several ordered steps"?
-    # TODO 1b: suspect_file. The file most likely to contain the bug.
+    steps: list[str]
+    suspect_file: str
 
 
 planner = Agent(MODEL, output_type=Plan, retries=3,
@@ -86,7 +85,28 @@ def validate_plan(plan: Plan) -> tuple[bool, list[str]]:
     Decide what happens on a failed check, repair once or refuse, and write
     the decision in DECISIONS.md.
     """
-    raise NotImplementedError("TODO 2: validate the plan")
+    problems = []
+
+    if not (2 <= len(plan.steps) <= 6):
+        problems.append(f"step count {len(plan.steps)} is outside 2-6")
+
+    if plan.suspect_file not in KNOWN_FILES:
+        problems.append(
+            f"suspect_file {plan.suspect_file!r} is not one of {sorted(KNOWN_FILES)}")
+
+    steps_lower = [s.lower() for s in plan.steps]
+    if not any("test" in s for s in steps_lower):
+        problems.append("no step runs the tests, so there is no "
+                        "verification step")
+
+    edit_words = ("edit", "modify", "change", "update", "delete", "remove",
+                 "alter", "rewrite")
+    if any("test" in s and any(w in s for w in edit_words)
+          for s in steps_lower):
+        problems.append("a step proposes editing a test, which apply_fix "
+                        "refuses anyway")
+
+    return not problems, problems
 
 
 # --------------------------------------------------------------------------
@@ -116,7 +136,11 @@ class Fix(BaseModel):
     appears in the file character for character.
     """
 
-    # TODO 3a: path, old_line, new_line, why
+    path: str = Field(description="file path, relative to the repo root")
+    old_line: str = Field(description="the wrong line, copied character "
+                                      "for character")
+    new_line: str = Field(description="the corrected line")
+    why: str = Field(description="why this fixes it")
 
 
 fixer = Agent(MODEL, output_type=Fix, retries=3,
