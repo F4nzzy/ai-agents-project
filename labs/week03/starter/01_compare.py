@@ -74,8 +74,22 @@ def run_router(client, model=SMALL.name):
                         evidence_ok=routed.evidence_ok)
 
         with rec.step("model", f"{model}:respond") as step:
-            answer, meta_a = respond(
-                client, SPECIALISTS[routed.applied_route], q.text, model)
+            if routed.applied_route == "request":
+                # Week 2's extractor, not a prose specialist. The record is
+                # the answer. The 29 Sep comparison still used the placeholder
+                # prompt; this is the wiring the homework asked for.
+                import sys
+                from pathlib import Path
+                w2 = Path(__file__).resolve().parents[2] / "week02" / "starter"
+                if str(w2) not in sys.path:
+                    sys.path.insert(0, str(w2))
+                from extractor import SYSTEM_ZERO_SHOT, extract
+                record, meta_a = extract(client, SYSTEM_ZERO_SHOT, q.text, model)
+                answer = (record.model_dump_json() if record is not None
+                          else (meta_a.get("raw") or ""))
+            else:
+                answer, meta_a = respond(
+                    client, SPECIALISTS[routed.applied_route], q.text, model)
             step.tokens(meta_a["prompt_tokens"], meta_a["completion_tokens"])
 
         rec.finish(output=answer, outcome="ok",

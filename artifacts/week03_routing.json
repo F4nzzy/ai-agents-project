@@ -1,14 +1,15 @@
 {
   "model": "qwen3:4b-instruct",
-  "router_hits": 5,
+  "source": "traces dated 2026-09-29, rebuilt because the 2026-10-06 file was a failed validation pass",
+  "router_hits": 19,
   "total": 24,
   "unambiguous": [
-    5,
+    16,
     20
   ],
   "per_route": {
     "request": [
-      0,
+      5,
       7
     ],
     "info": [
@@ -16,29 +17,28 @@
       5
     ],
     "status": [
-      0,
+      4,
       4
     ],
     "complaint": [
-      0,
+      4,
       4
     ],
     "other": [
-      0,
+      1,
       4
     ]
   },
   "confusion": {
-    "request->info": 7,
-    "status->info": 4,
-    "complaint->info": 4,
-    "other->info": 4
+    "request->complaint": 2,
+    "other->info": 2,
+    "other->complaint": 1
   },
   "policy_fired": {
-    "invalid_decision": 24
+    "below_threshold": 1
   },
-  "evidence_ok": 0,
-  "monolith_tokens": 9280,
-  "router_tokens": 13841,
-  "routing_call_tokens": 9280
+  "evidence_ok": 24,
+  "monolith_tokens": 11296,
+  "router_tokens": 13706,
+  "routing_call_tokens": 8783
 }

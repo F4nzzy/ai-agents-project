@@ -48,7 +48,8 @@ def main() -> int:
 
     client = get_client(args.replay)
 
-    runs = [run_task(client, t, model=args.model, max_steps=args.max_steps)
+    runs = [run_task(client, t, model=args.model, max_steps=args.max_steps,
+                     use_tools=not args.no_tools, replay=args.replay)
             for t in TASKS]
     board = score_all(TASKS, runs)
     print(report(board, runs))
@@ -60,8 +61,17 @@ def main() -> int:
         print(f"  [{mark}] {task.id}  steps {run.steps}  "
               f"{run.seconds:5.1f}s  tools={run.tool_calls}")
 
-    write_json("artifacts/week04_agent.json", {
+    slug = args.model.replace(":", "_").replace("/", "_")
+    if args.replay:
+        out_path = "artifacts/week04_agent_replay.json"
+    elif args.no_tools:
+        out_path = "artifacts/week04_agent_notools.json"
+    else:
+        out_path = f"artifacts/week04_agent_live_{slug}.json"
+    write_json(out_path, {
         "model": args.model, "max_steps": args.max_steps,
+        "use_tools": not args.no_tools,
+        "source": "replay" if args.replay else "live",
         "passed": board.passed, "total": board.total,
         "failed": board.failed_ids,
         "tool_abuse": board.tool_abuse, "invented": board.invented,

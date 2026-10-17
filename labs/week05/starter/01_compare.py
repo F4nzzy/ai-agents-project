@@ -73,6 +73,18 @@ async def run_planned(index: int, with_reviewer: bool) -> dict:
     out = await propose(work, TASK, use_plan=True)
     fix = out["fix"]
 
+    if fix is None:
+        row = {"architecture": "C planner+reviewer" if with_reviewer
+               else "B planner", "green": False,
+               "plan_ok": out["plan_ok"], "plan_problems": out["plan_problems"],
+               "applied": "refused",
+               "verdict": None, "verdict_reason": None, "fix": None,
+               "tokens": out["tokens"],
+               "seconds": round(time.perf_counter() - t0, 1)}
+        record(row["architecture"], index, "refused", **row)
+        work.cleanup()
+        return row
+
     verdict = None
     if with_reviewer:
         diff = diff_summary(work, fix.path, fix.old_line, fix.new_line)

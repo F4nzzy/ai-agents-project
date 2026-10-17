@@ -46,7 +46,14 @@ def to_openai_schema(schema: dict[str, Any]) -> dict[str, Any]:
     tools.py calls it "input_schema". Nothing about your tool changes, which
     is the point: the envelope is plumbing and the description is design.
     """
-    raise NotImplementedError("TODO 1: convert the schema envelope")
+    return {
+        "type": "function",
+        "function": {
+            "name": schema["name"],
+            "description": schema["description"],
+            "parameters": schema["input_schema"],
+        },
+    }
 
 
 SCHEMAS = [to_openai_schema(s) for s in ANTHROPIC_SCHEMAS]
@@ -138,7 +145,31 @@ def run_tool_call(name: str, raw_arguments: str) -> tuple[Any, bool]:
     paste it into its answer, and you have just told whoever asked the
     question what your directory layout is.
     """
-    raise NotImplementedError("TODO 5: validate, execute, catch, cap")
+    try:
+        args = json.loads(raw_arguments) if raw_arguments else {}
+    except json.JSONDecodeError:
+        return "Arguments were not valid JSON. Send one JSON object.", True
+    if not isinstance(args, dict):
+        return "Arguments must be a JSON object.", True
+    fn = DISPATCH.get(name)
+    if fn is None:
+        known = ", ".join(sorted(DISPATCH))
+        return f"No tool named {name}. Available tools: {known}.", True
+    try:
+        result = fn(**args)
+    except Exception as exc:  # noqa: BLE001
+        # The model will paste whatever we hand it. Keep the path off the page.
+        msg = str(exc).splitlines()[0]
+        if "/" in msg or "\\" in msg or "Traceback" in msg:
+            msg = type(exc).__name__
+        return f"Tool {name} failed: {msg}", True
+    if isinstance(result, str):
+        text = result
+    else:
+        text = json.dumps(result, ensure_ascii=False)
+    if len(text) > MAX_RESULT_CHARS:
+        text = text[:MAX_RESULT_CHARS] + "...[truncated]"
+    return text, False
 
 
 # --------------------------------------------------------------------------
@@ -147,7 +178,8 @@ def run_tool_call(name: str, raw_arguments: str) -> tuple[Any, bool]:
 
 def run_task(client, task, model: str = LARGE.name,
              max_steps: int = 6, stall_limit: int = 2,
-             system: str = SYSTEM, week: int = 4) -> Run:
+             system: str = SYSTEM, week: int = 4,
+             use_tools: bool = True, replay: bool = False) -> Run:
     """TODO 2, 3, 4. The whole agent: a while loop with three exits.
 
     Build it in this order, and run it after each one.
@@ -186,7 +218,112 @@ def run_task(client, task, model: str = LARGE.name,
     depends on a model's judgment, which is not a property you can promise
     anybody.
     """
-    raise NotImplementedError("TODO 2, 3, 4: the loop and its caps")
+    run = Run(task_id=task.id)
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": task.question},
+    ]
+    seen_docs: set[str] = set()
+    stalls = 0
+    t0 = time.perf_counter()
+    rec = TraceRecorder(
+        week=week, case_id=task.id,
+        conditions=local_conditions(model, temperature=0.0,
+                                    max_steps=max_steps,
+                                    stall_limit=stall_limit,
+                                    use_tools=use_tools,
+                                    replay=replay),
+        user_input=task.question)
+
+    def _close(outcome: str) -> Run:
+        run.seconds = round(time.perf_counter() - t0, 3)
+        rec.finish(output=run.answer, outcome=outcome,
+                   cap_fired=run.cap_fired, steps=run.steps,
+                   tool_calls=list(run.tool_calls),
+                   saw_injection=run.saw_injection)
+        return run
+
+    for _ in range(max_steps):
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "temperature": 0.0,
+            "max_tokens": 400,
+            "messages": messages,
+        }
+        if use_tools:
+            kwargs["tools"] = SCHEMAS
+        with rec.step("model", model) as span:
+            reply = client.chat.completions.create(**kwargs)
+            usage = reply.usage
+            span.tokens(getattr(usage, "prompt_tokens", None),
+                        getattr(usage, "completion_tokens", None))
+        run.steps += 1
+        run.tokens += (getattr(usage, "prompt_tokens", 0) or 0)
+        run.tokens += (getattr(usage, "completion_tokens", 0) or 0)
+
+        msg = reply.choices[0].message
+        tool_calls = list(getattr(msg, "tool_calls", None) or [])
+        if not tool_calls:
+            run.answer = msg.content or ""
+            return _close("ok")
+
+        dumped = []
+        for i, tc in enumerate(tool_calls):
+            fn = tc.function
+            index = getattr(tc, "index", None)
+            dumped.append({
+                "id": tc.id,
+                "type": getattr(tc, "type", None) or "function",
+                "index": i if index is None else index,
+                "function": {
+                    "name": fn.name,
+                    "arguments": fn.arguments or "{}",
+                },
+            })
+        messages.append({
+            "role": "assistant",
+            "content": msg.content or "",
+            "tool_calls": dumped,
+        })
+
+        new_docs: set[str] = set()
+        searched = False
+        for tc in tool_calls:
+            name = tc.function.name
+            run.tool_calls.append(name)
+            if name == "search_services":
+                searched = True
+            result, errored = run_tool_call(name, tc.function.arguments or "{}")
+            if errored:
+                run.tool_errors += 1
+            if INJECTION_MARKER in result:
+                run.saw_injection = True
+            new_docs |= _doc_ids(result)
+            with rec.step("tool", name) as span:
+                span.detail(errored=errored)
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": result,
+            })
+
+        # Progress is a handbook doc_id we had not seen. A compute call is
+        # not a stall: it does not reset the counter and it does not add to it.
+        if searched:
+            fresh = new_docs - seen_docs
+            if fresh:
+                seen_docs |= fresh
+                stalls = 0
+            else:
+                stalls += 1
+                if stalls >= stall_limit:
+                    run.cap_fired = "no_progress"
+                    run.answer = _partial(run, "No new handbook document")
+                    return _close("degraded")
+
+    run.cap_fired = "step_cap"
+    run.answer = _partial(run, f"Stopped at the step cap of {max_steps}")
+    return _close("degraded")
 
 
 def _partial(run: Run, reason: str) -> str:

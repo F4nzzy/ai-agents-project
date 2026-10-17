@@ -213,7 +213,17 @@ class Verdict(BaseModel):
 # inherits the mistake, and the second opinion stops being a second opinion.
 reviewer = Agent(MODEL, output_type=Verdict, retries=3,
                  system_prompt=(
-    "TODO 5: write these instructions"))
+    "You review one proposed line change. You are given the diff and the "
+    "failing test output, and nothing else. You do not see why the author "
+    "thinks it is right.\n"
+    "Approve only if the change fixes the bug the test is pointing at.\n"
+    "Reject if the diff touches a test file, if the old line is not really "
+    "in the file, or if the change makes the test pass by moving a constant "
+    "instead of fixing the comparison. Lowering the off-peak start from 20 "
+    "to 19 is that kind of wrong fix: a booking at 19:00 would get the "
+    "discount too. Changing > to >= at 20:00 is the fix, and that one "
+    "should be approved.\n"
+    "If you cannot tell from the diff that the stated bug is fixed, reject."))
 
 
 # --------------------------------------------------------------------------
@@ -239,6 +249,11 @@ async def propose(work: Work, task: str, use_plan: bool) -> dict:
         out["tokens"] += r.usage.total_tokens or 0
         ok, problems = validate_plan(r.output)
         out["plan_ok"], out["plan_problems"] = ok, problems
+        if not ok:
+            # A failed check refuses. Asking the fixer anyway would hide
+            # the validator, which is the point of running it first.
+            out["seconds"] = time.perf_counter() - t0
+            return out
         context = (f"A plan has already been made. Suspect file: "
                    f"{r.output.suspect_file}. Goal: {r.output.goal}\n")
         source_name = (r.output.suspect_file if r.output.suspect_file
