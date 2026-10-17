@@ -244,7 +244,16 @@ async def propose(work: Work, task: str, use_plan: bool) -> dict:
 
     context = ""
     if use_plan:
-        r = await planner.run(task)
+        try:
+            r = await planner.run(task)
+        except Exception as exc:
+            # After three retries the output is still not a plan. Record it.
+            out["plan_ok"] = False
+            out["plan_problems"] = [
+                f"{type(exc).__name__}: {str(exc).splitlines()[0][:240]}"]
+            out["seconds"] = time.perf_counter() - t0
+            print(f"    planner refused: {type(exc).__name__}")
+            return out
         out["plan"] = r.output
         out["tokens"] += r.usage.total_tokens or 0
         ok, problems = validate_plan(r.output)
@@ -265,7 +274,14 @@ async def propose(work: Work, task: str, use_plan: bool) -> dict:
     source = work.read(source_name)
     prompt = (f"{context}File {source_name}:\n{source}\n\n"
               f"Failing test output:\n{failing}\n\n{task}")
-    r = await fixer.run(prompt)
+    try:
+        r = await fixer.run(prompt)
+    except Exception as exc:
+        out["plan_problems"] = list(out["plan_problems"]) + [
+            f"fixer {type(exc).__name__}: {str(exc).splitlines()[0][:240]}"]
+        out["seconds"] = time.perf_counter() - t0
+        print(f"    fixer refused: {type(exc).__name__}")
+        return out
     out["fix"] = r.output
     out["tokens"] += r.usage.total_tokens or 0
     out["seconds"] = time.perf_counter() - t0
