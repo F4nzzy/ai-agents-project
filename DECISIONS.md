@@ -513,3 +513,93 @@ If those seconds are ~40/15/29, this file is still the 2026-08-11 recording. A l
 ### Deferred
 
 Task B (the same discount rate copied in four files) is not in the recording, so I have not run it. A live three-times table for A/B/C on this laptop is the other open item. Both are in `scripts/finish_weeks.sh`.
+
+
+
+
+
+## Week 6
+
+**Run conditions.** MCP SDK version: [ ] | specification revision:
+2026-07-28 | model: [ ] | served locally | date: [YYYY-MM-DD]
+
+### 1. The handle
+
+Format I chose: `fact-{secrets.token_hex(6)}` — the same unguessable,
+random-hex pattern `open_case` already uses for its handles, kept
+consistent rather than inventing a second scheme.
+
+A guessable handle would expose: a sequential `fact-0007` tells anyone
+who sees it roughly how many facts the whole store holds, and lets them
+try `fact-0006`, `fact-0008`, etc. — a read of some other resident's
+data that costs nothing to attempt. Random hex gives no information
+about count or neighbors.
+
+### 2. Conflict and retention
+
+- A write that contradicts an older fact: keep both, because the store
+  is a plain append-only list with no natural key to safely overwrite
+  on (same subject and kind does not mean same fact — a resident can
+  have two real addresses over time). `search` ranks by keyword
+  overlap and then recency, so a newer contradictory fact outranks an
+  older one without the older one being silently destroyed.
+- How long a record lives: forever, by default — nothing in `write`
+  expires a fact. This is a choice, not an oversight, and it is the
+  wrong one for a real service holding residents' data; stated here
+  explicitly rather than left silent.
+
+### 3. What k costs
+
+k = 3 (the method's default). Tokens added per call: measured with
+`tiktoken` on three representative facts (an address, a preference, a
+dated billing reference) — 10, 5, and 22 tokens, 37 tokens total for a
+k=3 result set. Short facts cost closer to 5-10 tokens each; longer,
+dated facts closer to 20+.
+
+At four hundred facts in the store, this design still scans every fact
+in `self.facts` to filter by subject before scoring, because the store
+is a flat Python list with no index on `subject`. That is a full O(n)
+scan over the *whole* store on every call, not just the target
+resident's facts — cheap in absolute terms at 400 rows, but it is the
+first thing that would need to become a real index if the store grew
+by orders of magnitude.
+
+### 4. Memory off against memory on
+
+| | tokens | turns to finish |
+| memory off | | |
+| memory on | | |
+
+[The interesting result is usually that memory costs more tokens per call
+and fewer calls per task. Whether that is a win depends on the task, and
+saying which way it went for you is the entry.]
+
+### 5. The protocol, at the wire
+
+| server mode | status | Mcp-Session-Id | answered |
+| stateless_http=True | | | |
+| stateless_http=False | | | |
+
+The error the session-mode server returned, quoted exactly:
+
+[ ]
+
+Why the two-server handle demonstration does not prove this on its own:
+
+[ ]
+
+### 6. What forget does not reach
+
+`forget` hard-deletes the fact from the store, but it cannot reach
+anything that was already copied into a running conversation's
+messages — if an earlier turn already read the fact into context, that
+text is still sitting in that conversation's message history, model
+output, or any transcript/log derived from it. For a resident who asks
+us to delete something: deleting it stops it from being recalled in
+future conversations, but it does not retroactively un-say it in a
+conversation already in progress, and we would need to say that
+plainly rather than imply "deleted" means "never happened."
+
+### Deferred
+
+[Anything you did not get to, and why.]
