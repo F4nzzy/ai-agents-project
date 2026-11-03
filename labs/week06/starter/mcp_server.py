@@ -63,6 +63,47 @@ app = MCPServer("memory-desk")
 # call must read the current state. A server that caches the store at startup
 # has session state hiding inside it, whatever the protocol says.
 
+def _store() -> MemoryStore:
+    # Read fresh on every call: revision 2026-07-28 lets any request land on
+    # any instance, so no instance may trust a copy it loaded earlier.
+    return MemoryStore.load()
+
+
+@app.tool()
+def remember(subject: str, kind: str, fact: str) -> str:
+    """Store one fact about a resident, and return its handle.
+
+    subject is the resident's name exactly as you will search for it later.
+    kind is a short label such as "address" or "preference". Returns a
+    handle like "fact-3f9a1c2b7d40"; keep it if the fact may need deleting.
+    Do not use this for anything the resident did not tell you, and do not
+    store the same fact twice.
+    """
+    return _store().write(subject, kind, fact)
+
+
+@app.tool()
+def recall(subject: str, query: str, k: int = 3) -> list[str]:
+    """Return up to k remembered facts about ONE resident that match query.
+
+    Only that subject's facts are searched, never anyone else's. An empty
+    list means nothing about this resident matches the query, not that the
+    resident is unknown and not that the call failed. Do not use this to
+    look up commune procedures or fees; it holds only what residents said.
+    """
+    return _store().search(subject, query, k)
+
+
+@app.tool()
+def forget(handle: str) -> bool:
+    """Permanently delete one remembered fact, named by its handle.
+
+    Returns true if the fact existed and is now gone, false if there was no
+    fact with that handle. It cannot remove anything already quoted earlier
+    in this conversation.
+    """
+    return _store().forget(handle)
+
 
 # --------------------------------------------------------------------------
 # TODO 5. The handle, which is the week's central move.
@@ -93,6 +134,29 @@ app = MCPServer("memory-desk")
 # Write the two tools, then answer this in DECISIONS.md: what would the
 # server have had to hold between calls if there were no handle, and what
 # would that cost you when a second instance appears behind a load balancer?
+
+@app.tool()
+def open_case(subject: str) -> str:
+    """Open a case for a resident and return its handle.
+
+    Returns a handle like "case-9b2e41f07ac3". Pass it as the handle
+    argument of every later call about this case; the server does not
+    remember which case you are working on between calls (revision
+    2026-07-28 has no session). Open one case per resident request.
+    """
+    return _store().open_case(subject)
+
+
+@app.tool()
+def case_subject(handle: str) -> str:
+    """Return the resident a case handle belongs to.
+
+    Returns the subject's name, or a string starting "ERROR: no such case"
+    if the handle was never issued. An error means the handle is wrong, not
+    that the resident has no case: do not guess another handle.
+    """
+    subject = _store().subject_of(handle)
+    return subject if subject is not None else f"ERROR: no such case: {handle}"
 
 
 if __name__ == "__main__":

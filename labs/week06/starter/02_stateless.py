@@ -56,7 +56,20 @@ def serve(port: int, stateless: bool) -> None:
 # to carry its own protocolVersion, clientInfo, and capabilities, because
 # under this revision there is no handshake that established them earlier.
 # Look at the specification for the exact field names before you guess.
-SELF_DESCRIBING = {}   # TODO 7a
+# Field names from mcp-types 2.0.0rc1, revision 2026-07-28.
+SELF_DESCRIBING = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/list",
+    "params": {
+        "_meta": {
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientInfo": {
+                "name": "week06-wire-probe", "version": "1.0"},
+            "io.modelcontextprotocol/clientCapabilities": {},
+        },
+    },
+}
 
 
 def raw_post(port: int, body: dict) -> tuple[int, dict[str, str], str]:
@@ -117,7 +130,16 @@ def main() -> int:
     # session mode. If your third check passes in both modes, you have
     # rebuilt the broken version.
     stateless, session = rows
-    checks = {}   # TODO 7b
+    checks = {
+        "stateless server answers the request (200, tools listed)":
+            stateless["status"] == 200 and stateless["answered"],
+        "stateless server issues no Mcp-Session-Id":
+            stateless["session_id"] is None,
+        "session-mode server refuses the identical request "
+        "(400, Missing session ID)":
+            session["status"] == 400 and not session["answered"]
+            and "Missing session ID" in session["body"],
+    }
     print()
     for name, passed in checks.items():
         print(f"  [{'PASS' if passed else 'FAIL'}] {name}")

@@ -47,8 +47,27 @@ async def main() -> int:
     file is a file. 02_stateless.py is the demonstration that actually
     distinguishes the two, and it is the next thing you run.
     """
-    raise NotImplementedError("TODO 6: list the catalog, then use a handle "
-                              "across two instances")
+    async with Client("http://127.0.0.1:8000/mcp") as client:
+        catalog = await client.list_tools()
+    tools = getattr(catalog, "tools", catalog)
+    print("catalog on :8000, discovered over HTTP:")
+    for tool in tools:
+        print(f"  {tool.name:<14} {(tool.description or '').splitlines()[0]}")
+
+    handle = text_of(await call(8000, "open_case", subject=SUBJECT))
+    fact = text_of(await call(8000, "remember", subject=SUBJECT,
+                              kind="report", fact="Reported a broken heater"))
+    print(f"\n:8000 open_case -> {handle}")
+    print(f":8000 remember  -> {fact}   (artifacts/memory_store.json changed)")
+
+    # Step 3. Redeemed on the second instance. This passes under the old
+    # session protocol too: it proves the file is shared, not that the
+    # protocol is stateless. 02_stateless.py is the real test.
+    owner = text_of(await call(8001, "case_subject", handle=handle))
+    recalled = await call(8001, "recall", subject=owner, query="heater")
+    print(f"\n:8001 case_subject({handle}) -> {owner}")
+    print(f":8001 recall('heater')         -> {text_of(recalled)}")
+    return 0 if owner == SUBJECT and "heater" in text_of(recalled) else 1
 
 
 if __name__ == "__main__":

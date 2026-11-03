@@ -1,0 +1,14 @@
+{
+  "facts": [
+    {
+      "subject": "A. Muller",
+      "kind": "report",
+      "text": "Reported a broken heater",
+      "handle": "fact-2d9c93bc6d9a",
+      "written_at": "2026-11-03T10:00:08Z"
+    }
+  ],
+  "cases": {
+    "case-85701aa62aa4": "A. Muller"
+  }
+}

@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import re
 import urllib.request
+from collections import Counter
 
 import chromadb
 
@@ -100,8 +101,9 @@ def keyword_search(chunks: list[Chunk], query: str,
     terms = re.findall(r"\w+", query.lower())
     scored = []
     for c in chunks:
-        text_lower = c.text.lower()
-        score = sum(text_lower.count(t) for t in terms)
+        # Whole words: str.count would match "a" inside every word.
+        counts = Counter(re.findall(r"\w+", c.text.lower()))
+        score = sum(counts[t] for t in terms)
         scored.append((score, c))
     scored.sort(key=lambda pair: (-pair[0], pair[1].chunk_id))
     return [c for _, c in scored[:k]]

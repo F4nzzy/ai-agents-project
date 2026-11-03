@@ -520,8 +520,8 @@ Task B (the same discount rate copied in four files) is not in the recording, so
 
 ## Week 6
 
-**Run conditions.** MCP SDK version: [ ] | specification revision:
-2026-07-28 | model: [ ] | served locally | date: [YYYY-MM-DD]
+**Run conditions.** MCP SDK version: 2.0.0rc1 | specification revision:
+2026-07-28 | model: qwen3:4b-instruct | served locally | date: 2026-11-03
 
 ### 1. The handle
 
@@ -567,26 +567,40 @@ by orders of magnitude.
 ### 4. Memory off against memory on
 
 | | tokens | turns to finish |
-| memory off | | |
-| memory on | | |
+| memory off | 231 | 2 |
+| memory on | 121 | 1 |
 
-[The interesting result is usually that memory costs more tokens per call
-and fewer calls per task. Whether that is a win depends on the task, and
-saying which way it went for you is the entry.]
+With memory off the model had to ask, a scripted resident
+replied, and the second turn answered. With memory on, `search` put the
+address into the prompt and the first turn answered. Memory made the first
+call larger but saved a whole turn, so it cost about half the tokens
+overall. 
 
 ### 5. The protocol, at the wire
 
 | server mode | status | Mcp-Session-Id | answered |
-| stateless_http=True | | | |
-| stateless_http=False | | | |
+| stateless_http=True | 200 | none | yes |
+| stateless_http=False | 400 | b6e77c3c756f46809225136527ba06db | no |
 
 The error the session-mode server returned, quoted exactly:
 
-[ ]
+`{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Bad Request: Missing session ID"}}`
 
 Why the two-server handle demonstration does not prove this on its own:
 
-[ ]
+`01_mcp_client.py` minted `case-85701aa62aa4` on :8000 and redeemed it on
+:8001, which worked. It would also work under the old session protocol,
+because each call opens its own connection and both instances read the same
+`memory_store.json`. It proves the file is shared, not that the protocol
+carries no session. `02_stateless.py` is the real test: identical bytes,
+answered by one mode and refused by the other, so its third check fails if
+statelessness is switched off.
+
+Without the handle, the server would have to remember which case each
+client was working on between calls. That is session state, and behind a
+load balancer every later request would have to reach the same instance, or
+the instances would need a shared session store. With the handle, any
+instance can answer any request.
 
 ### 6. What forget does not reach
 
@@ -601,9 +615,9 @@ conversation already in progress, and we would need to say that
 plainly rather than imply "deleted" means "never happened."
 
 ### Deferred
-
-[Anything you did not get to, and why.]
-
+- Building the A2A channel ourselves
+- An authorization check on the handle
+- Concurrent writes
 
 
 
@@ -611,7 +625,7 @@ plainly rather than imply "deleted" means "never happened."
 
 **Run conditions.** embedding model: nomic-embed-text | dimensionality: 768 |
 chunk size: 600 | overlap: 80 | k: 5 | store: Chroma | date: 2026-10-27 |
-table from: []
+table from: my own index
 
 ### 1. The chunker
 
@@ -625,37 +639,72 @@ size 600, overlap 80, because those are the lab's own defaults. large enough tha
 ### 3. The table
 
 | qid | dense rank | keyword rank | recall@5 | tags |
-| | | | | |
+| Q01 | 1 | 3 | 1.00 | distractor, superseded |
+| Q02 | 1 | 4 | 1.00 | rare-token |
+| Q03 | 1 | 3 | 1.00 | easy |
+| Q04 | 1 | 1 | 1.00 | vocabulary |
+| Q05 | 22 | 29 | 0.00 | multi-document |
+| Q06 | 1 | 24 | 1.00 | negation |
+| Q07 | 1 | 5 | 1.00 | easy |
+| Q08 | 1 | 1 | 1.00 | numeric |
+| Q09 | 1 | 1 | 1.00 | distractor |
+| Q10 | 1 | 1 | 1.00 | easy |
+| Q11 | 1 | 3 | 1.00 | easy |
+| Q12 | unanswerable | - | - | unanswerable |
 
 ### 4. Good pipeline, or easy task?
 
-[Ten of eleven questions rank the gold chunk first. Say which of the two
-that is evidence for. One sentence, and be honest.]
+Mostly an easy task: even a crude word count puts the gold chunk in the top
+five on 9 of 11 questions, because the corpus is small (84 chunks) and ten
+of the eleven answerable questions have a single gold section, so ten
+firsts says little about the pipeline.
 
 ### 5. The question that fails on both
 
-Question: [ ]. Dense rank [ ], keyword rank [ ].
+Question: Q05, "I have just moved to Remerbaach and I own a car. What do I
+have to do at the commune?" Dense rank 22, keyword rank 29.
 
 Why it fails:
 
-[...]
+It needs two sections from two documents. One query is one vector, and it sits between
+the two topics rather than near either, so neither document's chunks reach
+the top five.
 
-Would any chunk size fix it? [ ], because [ ].
+Would any chunk size fix it? No, because I measured 300, 600, and 1200:
+recall@5 was 0.00 for both retrievers at all three (dense rank 30, 22, 20;
+keyword 21, 29, 8). Chunk size changes how a section is cut, not the fact
+that one query must reach two documents.
 
 ### 6. The gold-set correction
 
-The note said: [ ]
+The note said: RB-1140b is "rare, exact, and semantically empty, so dense
+retrieval is the wrong tool for it and keyword search is the right one."
 
-My measurement said: [ ]
+My measurement said: dense ranked the gold section 1st and keyword 4th. The
+rare token did not rescue keyword search: it is 1 of 14 query words, and a
+plain term count weights it the same as "to" and "it".
 
 The corrected note:
 
-[...]
+The query carries the string RB-1140b, rare and exact. Measured 2026-11-03
+at chunk size 600: dense ranks the gold section 1st, keyword 4th. Keyword
+is only the right tool for a rare token if it weights rarity; a plain term
+count gives RB-1140b the same weight as 'to' and 'it', and the common words
+bury it.
 
-[What it cost you to find this: one measurement. What it would have cost to
-not find it: a stretch exercise built on a false premise, and a term in
-which nobody noticed.]
+What it cost to find: one measurement. Not finding it would have meant
+building on a claim my own data contradicts.
 
 ### Deferred
 
-[Anything you did not get to, and why.]
+A rarity-weighted keyword retriever (BM25) and hybrid retrieval were not
+built.
+
+
+
+
+## Integration
+
+Weeks 2 to 7 are carried into `app/`; `python -m app.run --stages` lists
+extract, route, agent, plan, memory, and mcp as built. Only weeks 8 and 9
+remain stubs, because those practicals have not happened yet. 
