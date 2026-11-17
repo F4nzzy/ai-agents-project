@@ -72,7 +72,7 @@ def is_retryable(exc: BaseException) -> bool:
     a broken credential into a slow broken credential, and on some upstreams
     into a locked account.
     """
-    raise NotImplementedError("TODO 1: which errors are retryable")
+    return isinstance(exc, (RateLimited, ServerError, ToolTimeout))
 
 
 # --------------------------------------------------------------------------
@@ -105,4 +105,51 @@ def call_with_policy(fn, *args, policy: StepPolicy, fallback=None,
     ladder skips past retrying straight to the fallback. If you find
     yourself retrying a drifted response, TODO 1 is wrong.
     """
-    raise NotImplementedError("TODO 2: the retry ladder")
+    result = StepResult()
+    started = time.monotonic()
+
+    for n in range(1, policy.attempts + 1):
+        if time.monotonic() - started >= policy.max_elapsed:
+            break
+        try:
+            value = fn(*args, **kwargs)
+            if validate is not None:
+                validate(value)
+            result.attempts.append(Attempt(n=n, error=None))
+            result.value = value
+            result.ok = True
+            result.outcome = "ok"
+            return result
+        except Exception as exc:
+            attempt = Attempt(n=n, error=type(exc).__name__)
+            result.attempts.append(attempt)
+            if not is_retryable(exc) or n == policy.attempts:
+                break
+
+            remaining = policy.max_elapsed - (time.monotonic() - started)
+            if remaining <= 0:
+                break
+            delay = policy.base_delay * (2 ** (n - 1))
+            if policy.jitter:
+                delay *= random.uniform(0.5, 1.5)
+            delay = min(delay, remaining)
+            if delay > 0:
+                time.sleep(delay)
+                attempt.slept = delay
+
+    if fallback is not None and time.monotonic() - started < policy.max_elapsed:
+        result.used_fallback = True
+        try:
+            value = fallback(*args, **kwargs)
+            if validate is not None:
+                validate(value)
+            result.value = value
+            result.ok = True
+            result.outcome = "fallback"
+            return result
+        except Exception:
+            pass
+
+    result.outcome = ("escalated" if policy.on_exhausted == "escalate"
+                      else "degraded")
+    return result
