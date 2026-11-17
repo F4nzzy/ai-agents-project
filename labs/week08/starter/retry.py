@@ -16,11 +16,29 @@ thing this replaces, and finding fourteen of them later is the reason.
 
 from __future__ import annotations
 
+import contextlib
 import random
 import time
 from dataclasses import dataclass, field
 
 from faults import ContractDrift, RateLimited, ServerError, ToolTimeout
+
+# OpenTelemetry spans, homework. Optional: without the package, or without
+# a tracer provider configured (`02_gate.py --otel`), every span is a no-op.
+try:
+    from opentelemetry import trace as _otel
+    _tracer = _otel.get_tracer("week08.retry")
+except ImportError:
+    _tracer = None
+
+
+@contextlib.contextmanager
+def _span(name: str, **attributes):
+    if _tracer is None:
+        yield None
+        return
+    with _tracer.start_as_current_span(name, attributes=attributes) as span:
+        yield span
 
 
 @dataclass
@@ -105,50 +123,70 @@ def call_with_policy(fn, *args, policy: StepPolicy, fallback=None,
     ladder skips past retrying straight to the fallback. If you find
     yourself retrying a drifted response, TODO 1 is wrong.
     """
+    step = getattr(fn, "__name__", "call")
+    with _span(f"step {step}") as span:
+        result = _ladder(fn, *args, policy=policy, fallback=fallback,
+                         validate=validate, **kwargs)
+        if span is not None:
+            span.set_attribute("outcome", result.outcome)
+            span.set_attribute("tries", result.tries)
+            span.set_attribute("used_fallback", result.used_fallback)
+        return result
+
+
+def _ladder(fn, *args, policy: StepPolicy, fallback=None, validate=None,
+            **kwargs) -> StepResult:
     result = StepResult()
     started = time.monotonic()
+    step = getattr(fn, "__name__", "call")
 
     for n in range(1, policy.attempts + 1):
         if time.monotonic() - started >= policy.max_elapsed:
             break
-        try:
-            value = fn(*args, **kwargs)
-            if validate is not None:
-                validate(value)
-            result.attempts.append(Attempt(n=n, error=None))
-            result.value = value
-            result.ok = True
-            result.outcome = "ok"
-            return result
-        except Exception as exc:
-            attempt = Attempt(n=n, error=type(exc).__name__)
-            result.attempts.append(attempt)
-            if not is_retryable(exc) or n == policy.attempts:
-                break
+        with _span(f"{step} attempt {n}") as span:
+            try:
+                value = fn(*args, **kwargs)
+                if validate is not None:
+                    validate(value)
+                result.attempts.append(Attempt(n=n, error=None))
+                result.value = value
+                result.ok = True
+                result.outcome = "ok"
+                return result
+            except Exception as exc:
+                if span is not None:
+                    span.set_attribute("error", type(exc).__name__)
+                attempt = Attempt(n=n, error=type(exc).__name__)
+                result.attempts.append(attempt)
+                retryable = is_retryable(exc)
+        if not retryable or n == policy.attempts:
+            break
 
-            remaining = policy.max_elapsed - (time.monotonic() - started)
-            if remaining <= 0:
-                break
-            delay = policy.base_delay * (2 ** (n - 1))
-            if policy.jitter:
-                delay *= random.uniform(0.5, 1.5)
-            delay = min(delay, remaining)
-            if delay > 0:
-                time.sleep(delay)
-                attempt.slept = delay
+        remaining = policy.max_elapsed - (time.monotonic() - started)
+        if remaining <= 0:
+            break
+        delay = policy.base_delay * (2 ** (n - 1))
+        if policy.jitter:
+            delay *= random.uniform(0.5, 1.5)
+        delay = min(delay, remaining)
+        if delay > 0:
+            time.sleep(delay)
+            attempt.slept = delay
 
     if fallback is not None and time.monotonic() - started < policy.max_elapsed:
         result.used_fallback = True
-        try:
-            value = fallback(*args, **kwargs)
-            if validate is not None:
-                validate(value)
-            result.value = value
-            result.ok = True
-            result.outcome = "fallback"
-            return result
-        except Exception:
-            pass
+        with _span(f"{step} fallback", fallback=getattr(
+                fallback, "__name__", "fallback")):
+            try:
+                value = fallback(*args, **kwargs)
+                if validate is not None:
+                    validate(value)
+                result.value = value
+                result.ok = True
+                result.outcome = "fallback"
+                return result
+            except Exception:
+                pass
 
     result.outcome = ("escalated" if policy.on_exhausted == "escalate"
                       else "degraded")

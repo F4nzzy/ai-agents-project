@@ -405,11 +405,13 @@ My definition of progress is a handbook `doc_id` I had not already seen, and it 
 
 Steps: min 1, max 2, mean 1.7. Caps fired: none. Tokens on the recording: 15360.
 
+3/10 on both qwen2.5:7b and qwen3:4b-instruct. Steps min 1, max 2 on both, and no cap fired.
+
 ### 4. What the tools bought
 
-No-tool baseline: not measured. `--replay --no-tools` does not replay a no-tool run; it falls back to the reference answers and the loop then pretends those tool calls happened. I am not writing that number down.
+No-tool baseline: 1/10. With tools: 3/10. Both live on qwen2.5:7b, 2026-10-17. Without tools only T-08 passed, which is the task that needs no tool.
 
-With tools, on the recording: 5/10. T-08, which needs no tool, made no tool call. That is the one place I can see the tools staying out of the way. What they bought on the other tasks has to wait for a live no-tool pass.
+The tools bought two tasks (T-02 and T-06), and they cost about 1,130 extra tokens per task (1,436 per task with tools against 309 without).
 
 ### 5. The four findings
 
@@ -422,13 +424,17 @@ With tools, on the recording: 5/10. T-08, which needs no tool, made no tool call
 
 T-09 is the other failure: it searched and still missed 294.40. The recording's note says it calls compute and reports the wrong total. Our replay of that trace only shows `search_services` in the tool list the scorer saw, and the answer still failed the substring check.
 
+The invented answer on T-10, live on qwen2.5:7b with tools: "The annual dog registration fee in Remerbaach is 24.00 EUR." An earlier live run the same day added a citation as well: "The annual dog registration fee in Remerbaach is 24.00 EUR per household, as stated in the waste collection fees section of the handbook." 24.00 EUR is a real figure from the waste section, attached to a fee the handbook does not have.
+
 ### 6. Blast radius
 
-Prompt-level defenses tried: not on this machine. The four prompts are in `02_defend.py`. The recording says the reference defenses block 0 of 8, and a `--replay` of our own sentences is not a measurement of those sentences (the fixture says so). Live count goes in the addendum below.
+Prompt-level defenses tried: 0 of 8 blocked the injection. Four prompts on both models, live on 2026-10-17. The text reached the model and was followed in all eight.
 
 Given that an attacker can make this agent say anything, the worst thing they can make it do today is put a fake fee, a fake form number, or the notice-board marker into the answer the resident reads. The tools are a read-only search and a calculator.
 
 That answer changes the moment the agent gains a tool that writes, sends, or pays, because the same notice-board sentence would then be an action, not just a sentence. I would bound that in week 11 or 12, before any write tool exists, not after.
+
+What I would build first to bound that, and the week I expect to build it in: a check in code, not in the prompt, in front of any tool that writes, sends or pays, so the exact arguments go to a human approval gate before anything runs. 0 of 8 prompt defenses held, so a sentence in the system prompt cannot be the bound. Week 11, tested against this notice board in week 12.
 
 One thing the scorer cannot see: a wrong answer that still happens to contain the gold substring, or a careful refusal that does not use one of the phrases in `gold_any`.
 
@@ -443,7 +449,12 @@ These are this machine's runs. The 5/10 table above stays the recording.
 
 ### Deferred
 
-Both models live, the no-tool baseline, and the defense ladder. Task B is week 5. `scripts/finish_weeks.sh` is the run.
+Nothing
+
+
+
+
+
 
 ## Week 5
 
@@ -474,8 +485,11 @@ structure and nesting are exactly what just broke reliability.
 | no step mentions tests | a plan with no verification step, which has no way of knowing whether it worked |
 | a step edits a test | a plan trying to make the suite pass by changing the test instead of the bug (`apply_fix` refuses this anyway) |
 
-On a failed check the run stops before the fixer is called. `validate_plan`
-only returns the problem list. `propose()` is what refuses.
+On a failed check my system refuses, because asking the fixer anyway, or
+asking the planner to repair its own plan, would hide the validator, and
+showing what the free checks catch is the point of running them first. The
+run stops before the fixer is called. `validate_plan` only returns the
+problem list. `propose()` is what refuses.
 
 ### 3. The three-way table
 
@@ -486,17 +500,26 @@ only returns the problem list. `propose()` is what refuses.
 
 Means are what `01_compare.py --replay` prints (token means are integer division).
 
+Live on 2026-10-17 (qwen2.5:7b, three runs each): A 0/3, B 0/3, C 0/3. B fell from 2/3 on the recording because, live, the fixer was never asked. All six planner runs in B and C were stopped before a fix was proposed (`artifacts/week05_architectures.json`):
+
+- twice the planner named `booking_discounts.py`, which does not exist
+- twice it failed its schema (`Exceeded maximum output retries (3)`)
+- once a step proposed editing a test
+- once the plan had one step and no test run
+
+The planner is given only the task text, never the list of files, yet it is asked to name the file it suspects. So the validator caught 6 of 6 bad plans for free, and the planner, not the fixer, was the weak link.
+
 ### 4. Why the baseline fails
 
 It is the same model as B. What changed is the action it is allowed to take. A gets a free-form tool loop and can edit any line. B has to propose one line, and `apply_fix` is the thing that actually writes it. On the recording A never goes green and spends about six times the tokens.
 
 ### 5. The reviewer
 
-Verdicts on the recording: 0 approve, 3 reject.
+Verdicts on the recording: 0 approve, 3 reject. Live: none, because no plan got past the validator, so the reviewer never ran.
 
 Would I ship it: no, not on this task. Extra cost: about 1690 tokens and 14 seconds per run (C minus B on the recording).
 
-It rejected the change that replaces `>` with `>=`, which is the actual fix, so C is 0/3 while B is 2/3. The reviewer made the result worse. The test suite already catches a bad line. The case where a reviewer would earn that cost is a change the tests do not catch.
+It rejected the change that replaces `>` with `>=`, which is the actual fix, so C is 0/3 while B is 2/3. The reviewer made the result worse. The test suite already catches a bad line. The case where a reviewer would earn that cost is a change the tests do not catch, such as lowering `OFF_PEAK_FROM_HOUR` from 20 to 19 (entry 6). The suite goes green on it, and only something reading the diff can see that a 19:00 booking now gets the discount.
 
 ### 6. What my verifier cannot catch
 
@@ -512,7 +535,7 @@ If those seconds are ~40/15/29, this file is still the 2026-08-11 recording. A l
 
 ### Deferred
 
-Task B (the same discount rate copied in four files) is not in the recording, so I have not run it. A live three-times table for A/B/C on this laptop is the other open item. Both are in `scripts/finish_weeks.sh`.
+Task B, the refactoring: not attempted, because `01_compare.py` only runs task A and the starter has no verifier for a refactor (the suite is green before and after). So whether the gap between architectures widens on task B, and whether the planner earns its cost there, is still open.
 
 
 
@@ -615,9 +638,9 @@ conversation already in progress, and we would need to say that
 plainly rather than imply "deleted" means "never happened."
 
 ### Deferred
-- Building the A2A channel ourselves
-- An authorization check on the handle
-- Concurrent writes
+- Building the A2A channel ourselves: not built yet. `03_a2a.py` was run as the demonstration, but the channel is still the course's code, not ours.
+- An authorization check on the handle: not built yet, so anyone holding a handle can read that case. That is the gap week 12 will attack.
+- Concurrent writes: the store is one JSON file rewritten on every write, so two instances writing at once can lose a fact. Out of scope while one process writes at a time.
 
 
 
@@ -698,7 +721,7 @@ building on a claim my own data contradicts.
 ### Deferred
 
 A rarity-weighted keyword retriever (BM25) and hybrid retrieval were not
-built.
+built, because they were stretch work rather than the session's task.
 
 
 
@@ -706,32 +729,30 @@ built.
 ## Integration
 
 Weeks 2 to 7 are carried into `app/`; `python -m app.run --stages` lists
-extract, route, agent, plan, memory, and mcp as built. Only weeks 8 and 9
-remain stubs, because those practicals have not happened yet. 
+extract, route, agent, plan, memory, and mcp as built. Week 8's retry and
+gate were wired in on 2026-11-17. Only week 9 remains a stub, because that
+practical has not happened yet. 
 
 
-# Week 8: retries, recovery, and a human approval gate
+
+
 
 ## Week 8
 
-**Run conditions.** Fault seed: 42 | baseline attempts: 1 | hardened attempts: 3 | hardened base delay: 0.02 s in `01_survive.py` (0.05 s in graph policies) | max elapsed: 3.0 s for hardened and graph policies | LangGraph version: not verified in this standalone archive | date: 2026-11-17.
-
-**Scope of evidence.** The fault matrix and node behavior below were verified using the packaged offline fault harness with temporary import shims, because the ZIP does not include the shared `project.trace` package or an installed LangGraph runtime. This is not a claim that the two-process gate was executed. Verify that demonstration from the complete project.
+**Run conditions.** fault seed: 42 | attempts: 1 baseline, 3 hardened | base delay: 0.02 s in `01_survive.py`, 0.05 s in the graph policies, with jitter | max elapsed: 3.0 s | LangGraph 1.2.22, langgraph-checkpoint-sqlite 3.1.3 | Windows PC, Python 3.11 | date: 2026-11-17
 
 ### 1. Which errors are retryable
 
-Retryable: `ToolTimeout`, `RateLimited` (HTTP 429), and `ServerError` (HTTP 500). These represent transient conditions for which another call may succeed.
+Retryable: `ToolTimeout`, `RateLimited` (HTTP 429), and `ServerError` (HTTP 500). These represent transient conditions for which another call may succeed. In `app/retry.py` the same line also covers the `openai` client's versions of those three conditions (`APITimeoutError`, `APIConnectionError`, `RateLimitError`, `InternalServerError`), matched by class name.
 
 Deliberately **not** retryable: `ContractDrift`, because a successful response with a renamed field is systematically incompatible with our expected contract; repeating it only wastes calls and can hide the real failure. A 401 authentication error is also not retryable: the credential must be repaired, and repeated attempts may lock an account.
 
-### 2. The fault matrix (TODO 6)
+### 2. The fault matrix
 
-| Run | correct | WRONG | degraded | failed |
+| | correct | WRONG | degraded | failed |
 | --- | ---: | ---: | ---: | ---: |
-| baseline (1 attempt, no validation/fallback) | 1 | 0 | 2 | 5 |
-| hardened (3 attempts, validation/fallback) | 2 | 0 | 5 | 1 |
-
-Per-fault observations from the local offline harness:
+| baseline | 1 | 0 | 2 | 5 |
+| hardened | 2 | 0 | 5 | 1 |
 
 | Fault | Baseline verdict | Hardened verdict | Hardened search / fees attempts |
 | --- | --- | --- | --- |
@@ -744,30 +765,54 @@ Per-fault observations from the local offline harness:
 | drift | degraded | degraded | 1 / 1 |
 | flaky | failed | correct | 2 / 2 |
 
+What hardening actually bought:
+
 Hardening bought **fewer outright failures (5 to 1)** and more explicit partial results (2 to 5), not a dramatic increase in correct answers. The flaky case recovers with retries; repeatable errors degrade instead of being silently accepted. In particular, drift is caught on the successful fee response via validation, and the fees step makes exactly **one** attempt. The `WRONG` count is zero in this fixture for both modes; this does not establish that all incorrect answers would be detected in production.
+
+What the fault harness cannot simulate: real network timing, authentication failures, third-party outages, or irreversible external side effects.
 
 ### 3. The empty result
 
 An empty result is not a transport error. My pipeline treats a successful empty search as **insufficient coverage**, marking `search evidence unavailable` and making the draft explicitly incomplete. It does not retry a 200 response merely because no passages were found, and does not invent evidence. An empty fee response is rejected by `validate_fee`, which prevents the draft from claiming a fee that was not supplied. In the matrix, the case with both search and fee empty is still `failed` (nothing useful was recovered).
 
-### 4. The gate (TODO 7)
+### 4. The gate
 
-Gated step: **`submit`** only, because it is an externally visible case submission with consequences that cannot be undone just by revising an answer. `gather`, `price`, and `draft` are read-only/preparatory; stopping them for approval creates unnecessary review fatigue.
+Gated step: **`submit`**. The others are not gated because `gather`, `price`, and `draft` are read-only and preparatory, while `submit` is an externally visible case submission that cannot be undone by revising an answer. Stopping the read-only steps for approval would only create review fatigue.
 
-An unanswered approval after a timeout should **default to reject / not submitted** and mark the request pending for human review. This protects the resident, the municipality, and the approver from an unauthorized or mistaken submission. **Not yet implemented:** the standalone `02_gate.py` demo waits for explicit resume; no timeout handler exists in this ZIP. The timeout is therefore a design decision and deferred homework, **not a tested behavior**.
+The gate survives the process. `02_gate.py start` paused at `submit` and exited, and a second process ran `02_gate.py resume` against the same checkpoint, reporting "resuming a run this process did not create":
 
-The approval payload carries the intended action, case ID, exact tool arguments (`topic` and structured `fee`), retrieved evidence, degradation flag, and missing-data names. It deliberately does **not** substitute a model-written summary for the arguments being approved. Approval, rejection, and editing are supported by the existing `submit` logic; the edit path uses the approver's replacement fee. The existing runner writes a decision record containing the verdict and reviewer identity.
+| resume | submitted | fee submitted | side effects | event |
+| --- | --- | --- | --- | --- |
+| approve | True | 60.0 EUR / year | `SUBMITTED RB-2026-0042` | `gate:approve:a.muller` |
+| reject | False | none | none | `gate:reject:a.muller` |
+| edit | True | 55.0 EUR / year, the edited value | `SUBMITTED RB-2026-0042 (edited)` | `gate:edit:a.muller` |
+
+Each resume wrote a decision record to `artifacts/week08_approval.json` with the verdict, the identity, and what changed.
+
+An unanswered approval after the timeout: **reject, nothing submitted**, and the request marked pending for human review. That protects the resident, the municipality, and the approver from a submission nobody authorized. Implemented in `app/graph.py` as `request_approval(payload, unattended)` around a one-node graph with the `submit` interrupt and its own `SqliteSaver`. Proof that it fires (2026-11-17, qwen3:4b-instruct for the extractor):
+
+- Attended, nobody answering, a 3 s timeout: it waited and returned `{'verdict': 'timeout', 'by': 'no answer after 3.0s'}`.
+- Unattended: the same default at once (0.60 s, `by: unattended`).
+- A typed `approve`: came back as `{'verdict': 'approve', 'by': 'console'}`.
+- `python -m app.run --route request "The badge reader at the town hall is broken."`: extracted the record, paused at the gate, and ended `outcome blocked`, "Not submitted: the approval gate answered timeout".
+- An unattended batch of six gold cases finished in 24.8 s without waiting for anyone. The four on the `request` route got `timeout` from the gate, and nothing was submitted.
+
+`python -m app.run --stages` now lists retry and gate as built.
+
+One trace with a retry, a fallback and the gate (`02_gate.py start --otel --faults=search:timeout@1.0`, OpenTelemetry SDK 1.45.2). Every span shares one trace id. The root is `case RB-2026-0042`. Under it, `step search` holds `search attempt 1`, `2` and `3` (each `ToolTimeout`) and `search fallback` (`keyword_fallback`), with `outcome: fallback, tries: 3`. Then `step fees` (ok, 1 try), and `gate paused at submit`.
+
+The approval payload carries the action, case ID, exact tool arguments (`topic` and the structured `fee`), retrieved evidence, the degraded flag, and the names of anything missing, and deliberately does **not** carry a model-written summary in place of the arguments being approved.
 
 ### 5. The duplicate the state does not show
 
-As documented by the supplied `WEEK08_FINDINGS.md` and `interrupt_smoke_test.py`, placing a side effect above the interrupt makes it execute **twice** (once before pause and once on resume), but recorded state shows it **once**, because the interrupted first execution does not return its state update. **This was not independently rerun in this standalone ZIP.**
+I put a side effect above the interrupt. It executed **2** times. The recorded state showed it **1** time.
 
-Consequently, the gated node must be **read-only above `interrupt()`**; external writes belong after approval and should be protected by idempotency controls as appropriate. The existing `submit()` has no external write before the interrupt, and its `side_effects` list is a demonstration record, not an actual database or network submission.
+Run with `interrupt_smoke_test.py` as two separate processes. Process 1 printed `[side effect ABOVE the interrupt executed]` and paused; process 2 printed it again on resume. The final state was `['prepared', 'WROTE_ABOVE_INTERRUPT', 'SUBMITTED']` and the script reported "duplicated side effects: none". The first execution never returned, so its state update was thrown away, but what it did outside the graph was not. On Windows the script needed its `/tmp` database path changed, and the database deleted before the run instead of inside it, because Windows will not delete a file that is still open.
 
-### Deferred / verification on the full repository
+What that means for anything my gated node does before it asks:
 
-- Run `python labs/week08/starter/02_gate.py start` and then **in a separate process** `python labs/week08/starter/02_gate.py resume approve`; repeat for `reject` and `edit`. The two-process checkpoint requires installed `langgraph` and `langgraph-checkpoint-sqlite`, plus the shared `project` package, which were not present in the uploaded ZIP.
-- Demonstrate the deliberate external side effect above an interrupt in a controlled test (see `interrupt_smoke_test.py`) and compare execution count with recorded state. Do not add such a write to the normal production gate.
-- Implement and prove the unattended approval timeout in the larger `app/` integration, where `request_approval(payload, unattended)` belongs. This week-only ZIP does not include `app/`.
-- Add an OpenTelemetry trace showing retry, fallback, and gate; run `python -m project.verify` from the full repository.
-- The offline harness cannot emulate real network timing, authentication failures, third-party outages, or irreversible external side effects.
+It must be **read-only above `interrupt()`**, because everything above it runs again on resume and the state will not show the duplicate. External writes belong after approval, protected by an idempotency key. The existing `submit()` writes nothing before the interrupt, and its `side_effects` list is a demonstration record, not a real submission.
+
+### Deferred
+
+- The stretch, a test that asserts the gate fired with no human present: not attempted, because the timeout proof in entry 4 already resumes the graph programmatically with nobody present, so a test would repeat it rather than add evidence.

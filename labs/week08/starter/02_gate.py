@@ -6,6 +6,11 @@ only survives inside one script, it is a session variable with extra steps.
     python 02_gate.py start
     python 02_gate.py resume approve      # or reject, or edit
 
+Homework, one trace with a retry, a fallback, and the gate (needs
+`pip install opentelemetry-sdk`):
+
+    python 02_gate.py start --otel --faults=search:timeout@1.0
+
 The written answer is at the bottom, and the second half of it is the part
 that is not on any slide.
 """
@@ -33,11 +38,36 @@ def show(graph, cfg) -> None:
     print(f"    events:        {snap.values.get('events')}")
 
 
+def otel_tracer():
+    """A tracer printing one line per span, or None without --otel."""
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import (ConsoleSpanExporter,
+                                                SimpleSpanProcessor)
+
+    def line(span) -> str:
+        parent = f"{span.parent.span_id:016x}"[:6] if span.parent else "root  "
+        return (f"  span {span.context.span_id:016x}"[:13] + " "
+                f"trace {span.context.trace_id:032x}"[:12] + " "
+                f"parent {parent}  {span.name:<26} {dict(span.attributes)}\n")
+
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(
+        ConsoleSpanExporter(formatter=line)))
+    trace.set_tracer_provider(provider)
+    return trace.get_tracer("week08.gate")
+
+
 def main() -> int:
-    mode = sys.argv[1] if len(sys.argv) > 1 else "start"
-    verdict = sys.argv[2] if len(sys.argv) > 2 else "approve"
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    flags = [a for a in sys.argv[1:] if a.startswith("--")]
+    mode = args[0] if args else "start"
+    verdict = args[1] if len(args) > 1 else "approve"
     cfg = {"configurable": {"thread_id": CASE}}
-    plan = FaultPlan.parse("")          # no faults, the gate is the subject
+    faults = next((f.split("=", 1)[1] for f in flags
+                   if f.startswith("--faults=")), "")
+    plan = FaultPlan.parse(faults)      # no faults unless asked: the gate is the subject
+    tracer = otel_tracer() if "--otel" in flags else None
 
     DB.parent.mkdir(parents=True, exist_ok=True)
     if mode == "start":
@@ -47,7 +77,17 @@ def main() -> int:
         graph = build(plan, saver)
 
         if mode == "start":
-            out = graph.invoke(initial(CASE, "parking vignette"), cfg)
+            if tracer is None:
+                out = graph.invoke(initial(CASE, "parking vignette"), cfg)
+            else:
+                with tracer.start_as_current_span(f"case {CASE}"):
+                    out = graph.invoke(initial(CASE, "parking vignette"), cfg)
+                    gate = out["__interrupt__"][0].value
+                    with tracer.start_as_current_span("gate paused at submit",
+                            attributes={"action": gate["action"],
+                                        "degraded": gate["degraded"],
+                                        "missing": gate["missing"]}):
+                        pass
             payload = out["__interrupt__"][0].value
             print("  the run has PAUSED at the gate\n")
             print(f"    action:    {payload['action']}")
