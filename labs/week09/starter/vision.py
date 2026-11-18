@@ -105,7 +105,39 @@ def guard(content: str, thinking: str, done_reason: str,
     file: it feeds guard() each of these on purpose and expects a refusal.
     A guard that accepts them all is worth nothing.
     """
-    raise NotImplementedError("TODO 1: guard")
+    # a) The context ran out mid-thought. done_reason is the only signal.
+    if done_reason == "length":
+        return None, ("done_reason=length: the output hit the context "
+                      "ceiling before an answer was written")
+
+    # b) Nothing in content. If the JSON went to `thinking`, say so.
+    if not content or not content.strip():
+        if thinking and thinking.strip():
+            return None, ("empty content, and the answer went to `thinking` "
+                          "instead (the think=False symptom)")
+        return None, "empty content"
+
+    # c) Not JSON, or JSON that is not an object (a grammar escape).
+    try:
+        obj = json.loads(content)
+    except json.JSONDecodeError as exc:
+        return None, f"content is not valid JSON: {exc.msg} at char {exc.pos}"
+    if not isinstance(obj, dict):
+        return None, f"content parsed to a {type(obj).__name__}, not an object"
+
+    # d) A required key is missing.
+    missing = [f for f in fields if f not in obj]
+    if missing:
+        return None, f"required keys missing: {missing}"
+
+    # e) Parsed, complete, and empty. Blank strings count as absent.
+    values = {f: (None if obj[f] is None or not str(obj[f]).strip()
+                  else str(obj[f]).strip()) for f in fields}
+    if all(v is None for v in values.values()):
+        return None, ("every value is null or blank: the object parsed and "
+                      "has every key, and says nothing")
+
+    return values, None
 
 
 # --------------------------------------------------------------------------
@@ -148,7 +180,44 @@ def read_group(image_path: Path, group: str, fields: list[str],
     # `failure` set rather than raising, then build the VisionResult with
     # the token counts and done_reason from the response, because block 2
     # needs them.
-    raise NotImplementedError("TODO 2: read_group")
+    body = {
+        "model": MODEL,
+        "stream": False,
+        "format": flat_schema(fields),
+        "options": {"temperature": 0.0},
+        "messages": [
+            {"role": "system", "content": system or SYSTEM},
+            {"role": "user",
+             "content": prompt or (f"Read these fields from this invoice: "
+                                   f"{', '.join(fields)}."),
+             "images": [encode(image_path, variant)]},
+        ],
+    }
+    started = time.perf_counter()
+    try:
+        request = urllib.request.Request(
+            ENDPOINT, data=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(request, timeout=TIMEOUT_S) as resp:
+            reply = json.loads(resp.read())
+    except (urllib.error.URLError, TimeoutError, OSError,
+            json.JSONDecodeError) as exc:
+        return VisionResult(doc=doc, group=group, variant=variant,
+                            failure=f"transport: {type(exc).__name__}: "
+                                    f"{str(exc)[:120]}",
+                            elapsed_s=time.perf_counter() - started)
+
+    message = reply.get("message") or {}
+    content = message.get("content") or ""
+    done_reason = reply.get("done_reason") or ""
+    parsed, failure = guard(content, message.get("thinking") or "",
+                            done_reason, fields)
+    out = VisionResult(doc=doc, group=group, variant=variant,
+                       fields=parsed or {}, failure=failure,
+                       elapsed_s=time.perf_counter() - started,
+                       prompt_tokens=reply.get("prompt_eval_count") or 0,
+                       output_tokens=reply.get("eval_count") or 0,
+                       done_reason=done_reason, raw_content=content)
 
     if record is not None:
         record.put(out)

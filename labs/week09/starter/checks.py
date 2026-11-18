@@ -89,7 +89,42 @@ def run_checks(fields: dict[str, str | None]) -> CheckReport:
     with each other will pass every one of these. Try it on paper before
     you decide your checks are finished.
     """
-    raise NotImplementedError("TODO 3: run_checks")
+    parsed = {"net": parse_amount(fields.get("net_amount")),
+              "vat": parse_amount(fields.get("vat_amount")),
+              "total": parse_amount(fields.get("total_amount"))}
+    net, vat, total = parsed["net"], parsed["vat"], parsed["total"]
+    fired: list[str] = []
+
+    # 1. Arithmetic, cheapest first. A missing amount fires here too: no
+    #    sum can be checked, and a missing check must not look like a pass.
+    missing = [k for k, v in parsed.items() if v is None]
+    if missing:
+        fired.append(f"arithmetic: no readable {', '.join(missing)}")
+    elif abs(net + vat - total) >= 0.01:
+        fired.append(f"arithmetic: net {net:.2f} + vat {vat:.2f} is not "
+                     f"total {total:.2f}")
+
+    # 2. VAT rate. The invoice rounds vat to the cent, so compare cents.
+    if net is not None and vat is not None and net > 0:
+        if abs(vat - round(net * VAT_RATE, 2)) > 0.01:
+            fired.append(f"vat rate: {vat / net:.4f} is not {VAT_RATE}")
+
+    # 3. Format. Messages name the field, never echo the page's text.
+    #    A missing purchase order is legitimate (INV-002), so None passes.
+    if not INVOICE_RE.match(fields.get("invoice_number") or ""):
+        fired.append("format: invoice_number is not INV-NNN-LU")
+    po = fields.get("purchase_order")
+    if po is not None and not PO_RE.match(po):
+        fired.append("format: purchase_order is not PO-NNNN-NNNN")
+    if fields.get("currency") not in CURRENCIES:
+        fired.append("format: currency is not EUR")
+
+    # 4. Plausibility. This supplier invoices hall maintenance in the
+    #    hundreds to low thousands; outside 10 to 10 000 EUR, ask a human.
+    if total is not None and not (10.0 <= total <= 10_000.0):
+        fired.append(f"plausibility: total {total:.2f} outside 10-10000 EUR")
+
+    return CheckReport(fired=fired, parsed=parsed)
 
 
 # --------------------------------------------------------------------------
