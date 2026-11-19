@@ -1,0 +1,86 @@
+{
+ "L-01": {
+  "case_id": "L-01",
+  "score": 1.0,
+  "verdict": "pass",
+  "reason": "The actual output directly answers the input question with the same details as the expected output, including the cost of the vignette and the application locat",
+  "seconds": 4.3
+ },
+ "L-02": {
+  "case_id": "L-02",
+  "score": 0.0,
+  "verdict": "fail",
+  "reason": "The actual output mentions a cost of 85 EUR, which contradicts the expected output's stated cost of 60 EUR, and introduces a detail not present in the expected ",
+  "seconds": 1.0
+ },
+ "L-03": {
+  "case_id": "L-03",
+  "score": 0.0,
+  "verdict": "fail",
+  "reason": "The actual output mentions 'the library is open on Saturday mornings', which introduces a completely unrelated topic not present in the expected output. The exp",
+  "seconds": 1.1
+ },
+ "L-04": {
+  "case_id": "L-04",
+  "score": 1.0,
+  "verdict": "pass",
+  "reason": "The actual output correctly states that bulky waste is collected on the first Saturday of the month by appointment, which is fully supported by the expected out",
+  "seconds": 1.1
+ },
+ "L-05": {
+  "case_id": "L-05",
+  "score": 0.6,
+  "verdict": "pass",
+  "reason": "The actual output correctly states the cost of the vignette as 60 EUR per year, which is explicitly mentioned in the expected output. It does not introduce any ",
+  "seconds": 1.8
+ },
+ "L-06": {
+  "case_id": "L-06",
+  "score": 0.2,
+  "verdict": "fail",
+  "reason": "The actual output mentions 'apply online through the citizen portal', which is not present in the expected output and introduces an element (online application ",
+  "seconds": 1.2
+ },
+ "L-07": {
+  "case_id": "L-07",
+  "score": 1.0,
+  "verdict": "pass",
+  "reason": "The actual output does not mention any fee, office name, or application process, which are all present in the expected output. However, it correctly states a la",
+  "seconds": 1.2
+ },
+ "L-08": {
+  "case_id": "L-08",
+  "score": 1.0,
+  "verdict": "pass",
+  "reason": "The actual output correctly states the cost as sixty euros and mentions the Bierger-Center as the application location, both of which are explicitly present in ",
+  "seconds": 1.0
+ },
+ "L-09": {
+  "case_id": "L-09",
+  "score": 1.0,
+  "verdict": "pass",
+  "reason": "The actual output correctly states that bulky waste is collected on the first Saturday of the month, which is fully supported by the expected output. It does no",
+  "seconds": 0.9
+ },
+ "L-10": {
+  "case_id": "L-10",
+  "score": 0.2,
+  "verdict": "fail",
+  "reason": "The actual output states 'Waste is collected on Tuesdays', which introduces the term 'waste' without specifying it as residual waste, and incorrectly implies th",
+  "seconds": 1.4
+ },
+ "L-11": {
+  "case_id": "L-11",
+  "score": 0.3,
+  "verdict": "fail",
+  "reason": "The actual output mentions 'Please book at least 48 hours in advance', which is not present in the expected output. This introduces a detail (a deadline or book",
+  "seconds": 1.0
+ },
+ "L-12": {
+  "case_id": "L-12",
+  "score": 0.4,
+  "verdict": "fail",
+  "reason": "The actual output mentions 'there may be a waiting list', which is not present in the expected output and thus introduces an unsupported detail. Additionally, w",
+  "seconds": 1.0
+ }
+}

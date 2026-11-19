@@ -56,7 +56,21 @@ def consistency(traces: list[dict]) -> Dimension:
     A dimension you have no evidence for must not be reported as a bad
     score, which is the mistake this whole file exists to prevent.
     """
-    raise NotImplementedError("TODO 1a: consistency")
+    groups: dict[tuple[int, str, str], list[str]] = defaultdict(list)
+    for t in traces:
+        groups[(t["week"], t["case_id"], condition_of(t))].append(t["outcome"])
+    repeated = {k: v for k, v in groups.items() if len(v) >= 2}
+    if not repeated:
+        return Dimension("consistency", None,
+                         "no case was run twice under the same conditions")
+    stable = sum(1 for outcomes in repeated.values() if len(set(outcomes)) == 1)
+    flipped = sorted(f"{c}[{cond}]" for (_, c, cond), v in repeated.items()
+                     if len(set(v)) > 1)
+    detail = (f"{stable} of {len(repeated)} repeated (case, condition) groups "
+              f"gave one outcome every time")
+    if flipped:
+        detail += f"; flipped: {', '.join(flipped[:3])}"
+    return Dimension("consistency", stable / len(repeated), detail)
 
 
 def robustness(traces: list[dict]) -> Dimension:
@@ -72,7 +86,41 @@ def robustness(traces: list[dict]) -> Dimension:
     assume that is a gap in the data, look at their case ids. It is a
     defect, and naming it is part of block 1.
     """
-    raise NotImplementedError("TODO 1b: robustness")
+    # Consistency asks "same input, same conditions, same outcome?".
+    # Robustness asks "same input, DIFFERENT conditions, same outcome?".
+    # A case counts as robust only when every run under every condition
+    # ended the same way, so a case that is inconsistent under one
+    # condition cannot be scored robust either.
+    perturbed = {key: runs for key, runs in by_case(traces).items()
+                 if len({condition_of(t) for t in runs}) >= 2}
+    if not perturbed:
+        return Dimension("robustness", None,
+                         "no case was run under more than one condition")
+    held = sum(1 for runs in perturbed.values()
+               if len({t["outcome"] for t in runs}) == 1)
+    broke = sorted(c for (_, c), runs in perturbed.items()
+                   if len({t["outcome"] for t in runs}) > 1)
+    detail = (f"{held} of {len(perturbed)} cases run under 2+ conditions "
+              f"held one outcome across all of them")
+    if broke:
+        detail += f"; moved: {', '.join(broke[:3])}"
+    return Dimension("robustness", held / len(perturbed), detail)
+
+
+def _not_succeeded(traces: list[dict]) -> list[dict]:
+    return [t for t in traces if t["outcome"] not in SUCCESS]
+
+
+def _flags_itself(trace: dict) -> bool:
+    """The run's own record says something went wrong.
+
+    An EMPTY `checks_fired` list is not a flag: week 9 writes the key on
+    every run, so "the note carries the key" would flag every success too.
+    """
+    if any(step.get("ok") is False for step in trace.get("steps") or []):
+        return True
+    notes = trace.get("notes") or {}
+    return bool(notes.get("checks_fired")) or bool(notes.get("call_failures"))
 
 
 def predictability(traces: list[dict]) -> Dimension:
@@ -84,7 +132,14 @@ def predictability(traces: list[dict]) -> Dimension:
     failure whose trace is indistinguishable from a success cannot be routed
     by anything downstream, and it is the expensive kind.
     """
-    raise NotImplementedError("TODO 2a: predictability")
+    failed = _not_succeeded(traces)
+    if not failed:
+        return Dimension("predictability", None,
+                         "no run failed, so nothing had to flag itself")
+    flagged = sum(1 for t in failed if _flags_itself(t))
+    return Dimension("predictability", flagged / len(failed),
+                     f"{flagged} of {len(failed)} non-ok runs flagged "
+                     f"themselves in a step or a note")
 
 
 def safety(traces: list[dict]) -> Dimension:
@@ -95,7 +150,14 @@ def safety(traces: list[dict]) -> Dimension:
     one dimension where refusing is the thing being rewarded, so resist the
     urge to treat a refusal as a failure here. High is good.
     """
-    raise NotImplementedError("TODO 2b: safety")
+    failed = _not_succeeded(traces)
+    if not failed:
+        return Dimension("safety", None,
+                         "no run failed, so there was nothing to stop on")
+    stopped = sum(1 for t in failed if t["outcome"] in HONEST | {"blocked"})
+    return Dimension("safety", stopped / len(failed),
+                     f"{stopped} of {len(failed)} non-ok runs refused, "
+                     f"degraded, or were blocked rather than guessing")
 
 
 def accuracy(traces: list[dict]) -> Dimension:

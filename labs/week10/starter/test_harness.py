@@ -111,7 +111,26 @@ def test_judge_agrees_with_human_labels():
     metric anywhere in your report means anything, which is why it is a
     test and not a paragraph in a README.
     """
-    raise NotImplementedError("TODO 5a")
+    agreement = _validated()
+    assert agreement.n == len(J.LABELS), (
+        f"only {agreement.n} of {len(J.LABELS)} labelled cases have a "
+        f"judgment. Finish `python 02_judge.py` before trusting any score.")
+
+    # The four controls are cases nobody could disagree on. A judge that
+    # misses one of them is not worth validating on the arguable eight.
+    missed = [r["case_id"] for r in agreement.rows
+              if r["case_id"] in CONTROLS and r["human"] != r["judge"]]
+    assert not missed, f"judge got an obvious control case wrong: {missed}"
+
+    # The bar: at most one disagreement in twelve (0.9 lets 11/12 through).
+    # Twelve labels cannot support a finer claim than that, and a bar of
+    # 1.0 would make the gate fail on the first honest disagreement about
+    # an arguable case, which is a reason to argue, not to stop a build.
+    assert agreement.rate >= MIN_AGREEMENT, (
+        f"judge agrees with the hand labels on {agreement.agreed}/"
+        f"{agreement.n} = {agreement.rate:.2f} at threshold {J.THRESHOLD}, "
+        f"below {MIN_AGREEMENT}. Disagreements: "
+        f"{[r['case_id'] for r in agreement.rows if r['human'] != r['judge']]}")
 
 
 @pytest.mark.judged
@@ -122,7 +141,17 @@ def test_judge_makes_no_false_passes():
     went green on an invented answer. Forbid only the second, and say in
     one comment why you are not forbidding both.
     """
-    raise NotImplementedError("TODO 5b")
+    agreement = _validated()
+    # False fails are allowed through this gate (5a still bounds them):
+    # one costs a reviewer a look at a correct answer. A false pass is an
+    # invented fee or deadline reaching a resident with a green tick on
+    # it, and there is no downstream step that catches it.
+    false_passes = [f"{r['case_id']} (score {r['score']:.2f}: {r['why_human']})"
+                    for r in agreement.rows
+                    if r["human"] == "fail" and r["judge"] == "pass"]
+    assert not false_passes, (
+        f"at threshold {J.THRESHOLD} the judge PASSED {len(false_passes)} "
+        f"answer(s) a human failed: {false_passes}")
 
 
 @pytest.mark.judged
@@ -134,4 +163,35 @@ def test_threshold_is_not_on_a_cliff():
     are about to report is an artefact of a library default that nobody
     chose, and you should find that out now rather than in week 12.
     """
-    raise NotImplementedError("TODO 5c")
+    judgments = _recorded_or_skip()
+    rates = {round(t, 2): J.validate(judgments, threshold=t).rate
+             for t in (J.THRESHOLD - NUDGE, J.THRESHOLD, J.THRESHOLD + NUDGE)}
+    # "Close" means no more than one case flips per nudge. On twelve labels
+    # that is a 0.083 move; anything bigger and the reported agreement is a
+    # property of where the default happened to land, not of the judge.
+    tolerance = 1 / len(J.LABELS) + 1e-9
+    spread = max(rates.values()) - min(rates.values())
+    assert spread <= tolerance, (
+        f"agreement moves by {spread:.2f} within +/-{NUDGE} of the threshold "
+        f"{J.THRESHOLD}: {rates}. The threshold sits on a cliff.")
+
+
+# --------------------------------------------------------------------------
+# Helpers for the judged gates. Nothing here calls a model: the gates read
+# the RECORDED scores and recompute every verdict at the live threshold.
+# --------------------------------------------------------------------------
+
+CONTROLS = {"L-01", "L-02", "L-03", "L-04"}
+MIN_AGREEMENT = 0.9
+NUDGE = 0.05
+
+
+def _recorded_or_skip() -> dict:
+    judgments = J.load_recorded()
+    if not judgments:
+        pytest.skip("no judgments recorded yet. Run `python 02_judge.py`.")
+    return judgments
+
+
+def _validated():
+    return J.validate(_recorded_or_skip())

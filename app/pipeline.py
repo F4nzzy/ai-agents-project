@@ -208,6 +208,10 @@ def _gate(run: _Run, payload: dict) -> dict:
                                           unattended=run.unattended)
         s.detail(action=payload["action"],
                  verdict=decision.get("verdict"), by=decision.get("by"))
+        # Week 10: an unapproved run says so in its step (predictability).
+        if decision.get("verdict") not in ("approve", "edit"):
+            s.failed(f"not approved: {decision.get('verdict')} "
+                     f"({decision.get('by')})")
     return decision
 
 
@@ -219,6 +223,8 @@ def _submit(run: _Run, text: str, facts: list[str]) -> tuple[str, Outcome]:
         record, meta = extractor.extract(run.client, extractor.SYSTEM, text)
         s.tokens(meta.get("prompt_tokens"), meta.get("completion_tokens"))
         s.detail(valid=record is not None, error=meta.get("error"))
+        if record is None:
+            s.failed(f"no valid record: {meta.get('error')}")
     if record is None:
         return ("I could not turn this message into a request, so nothing "
                 f"was logged. {HELP_DESK}"), "refused"
@@ -246,6 +252,8 @@ def _answer(run: _Run, text: str, facts: list[str]) -> tuple[str, Outcome]:
         plan = agents.make_plan(text)
         plan_ok, problems = agents.validate_plan(plan)
         s.detail(steps=len(plan.steps), plan_ok=plan_ok, problems=problems)
+        if not plan_ok:
+            s.failed("plan failed validation")
     if not plan_ok:
         run.notes["plan_problems"] = problems
         return f"I could not plan an answer to this. {HELP_DESK}", "refused"
@@ -267,6 +275,8 @@ def _answer(run: _Run, text: str, facts: list[str]) -> tuple[str, Outcome]:
         failed = [a.error for a in res.attempts if a.error]
         if failed:
             run.notes["call_failures"] = len(failed)
+        if result is None or not res.ok:
+            s.failed(f"agent did not finish: {res.outcome}")
         if result is not None:
             s.tokens(result.tokens or None, None)
             s.detail(steps=result.steps, tool_calls=result.tool_calls,
@@ -284,6 +294,8 @@ def _answer(run: _Run, text: str, facts: list[str]) -> tuple[str, Outcome]:
         verdict = agents.review(text, result.answer, facts)
         s.detail(verdict=verdict.decision if verdict else None,
                  reason=verdict.reason if verdict else None)
+        if verdict is not None and verdict.decision == "reject":
+            s.failed(f"review rejected: {verdict.reason}")
     if verdict is not None and verdict.decision == "reject":
         return (f"I have a draft answer but it did not pass review. "
                 f"{HELP_DESK}"), "blocked"
@@ -441,5 +453,16 @@ def run_batch(cases, repeat: int = 1, week: int | None = None,
     for _ in range(repeat):
         for case in cases:
             traces.append(handle(case.question, case_id=case.case_id,
-                                 week=week, unattended=True, path=path))
+                                 image=_gold_image(case), week=week,
+                                 unattended=True, path=path))
     return traces
+
+
+def _gold_image(case) -> Path | None:
+    """Week 9 gold cases carry their image in `expected["image"]`."""
+    expected = getattr(case, "expected", None)
+    image = expected.get("image") if isinstance(expected, dict) else None
+    if not image:
+        return None
+    p = Path(image)
+    return p if p.is_absolute() else repo_root() / p

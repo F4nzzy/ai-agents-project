@@ -1,0 +1,187 @@
+{
+  "threshold": 0.5,
+  "rows": [
+    {
+      "case_id": "L-01",
+      "human": "pass",
+      "judge": "pass",
+      "score": 1.0,
+      "threshold": 0.5,
+      "why_human": "it is the expected answer",
+      "why_judge": "The actual output directly answers the input question with the same details as the expected output, including the cost and application location. No invented ele",
+      "seconds": 4.1
+    },
+    {
+      "case_id": "L-02",
+      "human": "fail",
+      "judge": "fail",
+      "score": 0.0,
+      "threshold": 0.5,
+      "why_human": "invented fee, 85 for 60",
+      "why_judge": "The actual output states the vignette costs 85 EUR, but the expected output specifies 60 EUR. This discrepancy violates step 1, which requires the actual output",
+      "seconds": 1.0
+    },
+    {
+      "case_id": "L-03",
+      "human": "fail",
+      "judge": "fail",
+      "score": 0.0,
+      "threshold": 0.5,
+      "why_human": "does not answer the question",
+      "why_judge": "The actual output does not address the input question about the vignette cost or application location. Instead, it mentions library hours, which is entirely unr",
+      "seconds": 0.8
+    },
+    {
+      "case_id": "L-04",
+      "human": "pass",
+      "judge": "pass",
+      "score": 1.0,
+      "threshold": 0.5,
+      "why_human": "exactly right",
+      "why_judge": "The actual output correctly includes the detail 'bulky waste is collected on the first Saturday of the month, by appointment' which is present in the expected o",
+      "seconds": 1.1
+    },
+    {
+      "case_id": "L-05",
+      "human": "pass",
+      "judge": "fail",
+      "score": 0.4,
+      "threshold": 0.5,
+      "why_human": "correct, incomplete, invents nothing",
+      "why_judge": "The actual output states the cost of the vignette but omits the application location and proof of residence, details explicitly present in the expected output. ",
+      "seconds": 1.1
+    },
+    {
+      "case_id": "L-06",
+      "human": "fail",
+      "judge": "fail",
+      "score": 0.3,
+      "threshold": 0.5,
+      "why_human": "right fee, invented channel",
+      "why_judge": "The actual output introduces 'online' and 'citizen portal' as application methods, which are not present in the expected output that specifies application at th",
+      "seconds": 1.1
+    },
+    {
+      "case_id": "L-07",
+      "human": "fail",
+      "judge": "fail",
+      "score": 0.0,
+      "threshold": 0.5,
+      "why_human": "honest, but it did not answer",
+      "why_judge": "The actual output does not address the input question by stating the cost or application location, instead asserting a lack of information. The expected output ",
+      "seconds": 1.3
+    },
+    {
+      "case_id": "L-08",
+      "human": "pass",
+      "judge": "pass",
+      "score": 0.8,
+      "threshold": 0.5,
+      "why_human": "same facts, different words and a spelled number",
+      "why_judge": "The actual output correctly states the cost as sixty euros and mentions the Bierger-Center, both of which are present in the expected output. However, it omits ",
+      "seconds": 1.4
+    },
+    {
+      "case_id": "L-09",
+      "human": "pass",
+      "judge": "pass",
+      "score": 0.6,
+      "threshold": 0.5,
+      "why_human": "true, drops the appointment requirement",
+      "why_judge": "The actual output correctly states that bulky waste is collected on the first Saturday of the month, which is present in the expected output. However, it omits ",
+      "seconds": 1.2
+    },
+    {
+      "case_id": "L-10",
+      "human": "fail",
+      "judge": "fail",
+      "score": 0.0,
+      "threshold": 0.5,
+      "why_human": "answers about the wrong waste stream",
+      "why_judge": "The actual output states 'Waste is collected on Tuesdays', which does not match the expected output's specific mention of 'bulky waste' being collected on the f",
+      "seconds": 1.3
+    },
+    {
+      "case_id": "L-11",
+      "human": "fail",
+      "judge": "fail",
+      "score": 0.4,
+      "threshold": 0.5,
+      "why_human": "the 48 hours is invented",
+      "why_judge": "The actual output includes the detail 'Please book at least 48 hours in advance', which is not present in the expected output. This invented element violates ev",
+      "seconds": 1.3
+    },
+    {
+      "case_id": "L-12",
+      "human": "fail",
+      "judge": "fail",
+      "score": 0.4,
+      "threshold": 0.5,
+      "why_human": "mostly right, then invents a waiting list",
+      "why_judge": "The actual output introduces an invented detail about a 'waiting list' that is not present in the expected output, violating step 2. While it correctly states t",
+      "seconds": 1.0
+    }
+  ],
+  "confusion": {
+    "true_pass": 4,
+    "true_fail": 7,
+    "false_pass": 0,
+    "false_fail": 1
+  },
+  "sweep": [
+    {
+      "threshold": 0.15,
+      "agreement": 0.75,
+      "false_pass": 3,
+      "false_fail": 0
+    },
+    {
+      "threshold": 0.25,
+      "agreement": 0.75,
+      "false_pass": 3,
+      "false_fail": 0
+    },
+    {
+      "threshold": 0.35,
+      "agreement": 0.8333333333333334,
+      "false_pass": 2,
+      "false_fail": 0
+    },
+    {
+      "threshold": 0.45,
+      "agreement": 0.9166666666666666,
+      "false_pass": 0,
+      "false_fail": 1
+    },
+    {
+      "threshold": 0.5,
+      "agreement": 0.9166666666666666,
+      "false_pass": 0,
+      "false_fail": 1
+    },
+    {
+      "threshold": 0.55,
+      "agreement": 0.9166666666666666,
+      "false_pass": 0,
+      "false_fail": 1
+    },
+    {
+      "threshold": 0.65,
+      "agreement": 0.8333333333333334,
+      "false_pass": 0,
+      "false_fail": 2
+    },
+    {
+      "threshold": 0.75,
+      "agreement": 0.8333333333333334,
+      "false_pass": 0,
+      "false_fail": 2
+    },
+    {
+      "threshold": 0.85,
+      "agreement": 0.75,
+      "false_pass": 0,
+      "false_fail": 3
+    }
+  ]
+}

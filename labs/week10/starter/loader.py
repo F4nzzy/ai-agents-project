@@ -33,7 +33,7 @@ def traces_path() -> tuple[Path, bool]:
     own = Path(TRACES_PATH)
     if not own.is_absolute():
         own = REPO / own
-    if own.exists() and own.read_text().strip():
+    if own.exists() and own.read_text(encoding="utf-8").strip():
         return own, False
     return REFERENCE_TRACES, True
 
@@ -61,7 +61,7 @@ def load_traces(week: int | None = None,
               "      and these numbers become yours.\n", file=sys.stderr)
     if not path.exists():
         return []
-    rows = [json.loads(line) for line in path.read_text().splitlines()
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()
             if line.strip()]
     return [r for r in rows if (week is None or r["week"] == week)
             and (source is None or source_of(r) == source)]
@@ -71,11 +71,11 @@ def load_goldset() -> list[dict]:
     path = Path(GOLDSET_PATH)
     if not path.is_absolute():
         path = REPO / path
-    return json.loads(path.read_text())["cases"]
+    return json.loads(path.read_text(encoding="utf-8"))["cases"]
 
 
 def load_artifact(name: str) -> dict:
-    return json.loads((ARTIFACTS / name).read_text())
+    return json.loads((ARTIFACTS / name).read_text(encoding="utf-8"))
 
 
 def by_case(traces: list[dict]) -> dict[tuple[int, str], list[dict]]:

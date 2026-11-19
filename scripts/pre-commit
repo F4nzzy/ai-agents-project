@@ -1,0 +1,23 @@
+#!/bin/sh
+# Week 10 homework: the free gates on every commit.
+#
+# Install once from the repository root:
+#     cp scripts/pre-commit .git/hooks/pre-commit
+#
+# Runs only the gates marked "not judged": no model call, no network, about
+# a second of wall clock (measured 2026-11-19, see DECISIONS.md, Week 10).
+# The judged gates read recorded scores and could run here too, but they
+# belong in CI next to the judge run that refreshes those scores.
+#
+# Skip once, deliberately and visibly:  git commit --no-verify
+
+cd "$(git rev-parse --show-toplevel)/labs/week10/starter" || exit 1
+start=$(date +%s)
+out=$(python -m pytest -q -m "not judged" 2>&1)
+status=$?
+printf '%s\n' "$out" | tail -n 6
+echo "week 10 free gates: exit $status in $(( $(date +%s) - start ))s"
+if [ "$status" -ne 0 ]; then
+    echo "pre-commit: a free gate failed. Fix it, or commit with --no-verify and say why."
+fi
+exit $status

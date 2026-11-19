@@ -13,6 +13,7 @@ not "does it flake". It is "where is it wrong, and what does it cost".
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -21,11 +22,15 @@ MODEL = "qwen3:4b-instruct"
 ENDPOINT = "http://127.0.0.1:11434"
 THRESHOLD = 0.5
 
+# Week 10: the last sentence is added. Without it the judge scored the
+# honest non-answer L-07 at 1.00, because a criterion that only penalises
+# INVENTED facts is perfectly satisfied by an answer that states none.
 CRITERIA = (
     "Does the actual output answer the input using ONLY facts that appear in "
     "the expected output? Penalise any invented fee, deadline, office name, "
     "or document name. An answer that is correct but incomplete is better "
-    "than an answer that is complete and partly invented."
+    "than an answer that is complete and partly invented. An answer that "
+    "does not answer the question at all scores 0."
 )
 
 
@@ -102,7 +107,6 @@ LABELS: list[Labelled] = [
              "fail", "mostly right, then invents a waiting list"),
 ]
 
-
 @dataclass
 class Judgment:
     case_id: str
@@ -164,7 +168,25 @@ def build_metric():
     runs for somebody who has not installed DeepEval yet. Block 1 needs no
     model at all and should not be blocked by a dependency it never uses.
     """
-    raise NotImplementedError("TODO 3a: build_metric")
+    # DeepEval phones home by default. Nothing in this course leaves the
+    # machine, so opt out before the first deepeval import.
+    os.environ.setdefault("DEEPEVAL_TELEMETRY_OPT_OUT", "YES")
+
+    from deepeval.metrics import GEval
+    from deepeval.models import OllamaModel
+    from deepeval.test_case import SingleTurnParams
+
+    judge_model = OllamaModel(model=MODEL, base_url=ENDPOINT, temperature=0)
+    return GEval(
+        name="grounded in the expected answer",
+        criteria=CRITERIA,
+        evaluation_params=[SingleTurnParams.INPUT,
+                           SingleTurnParams.ACTUAL_OUTPUT,
+                           SingleTurnParams.EXPECTED_OUTPUT],
+        model=judge_model,
+        threshold=THRESHOLD,
+        async_mode=False,
+    )
 
 
 def judge_one(metric, case: Labelled) -> Judgment:
@@ -176,7 +198,17 @@ def judge_one(metric, case: Labelled) -> Judgment:
     the cost of a judged case against the cost of a deterministic check, and
     you cannot make that argument without the number.
     """
-    raise NotImplementedError("TODO 3b: judge_one")
+    from deepeval.test_case import LLMTestCase
+
+    test_case = LLMTestCase(input=case.question, actual_output=case.actual,
+                            expected_output=case.expected)
+    started = time.perf_counter()
+    metric.measure(test_case)
+    seconds = round(time.perf_counter() - started, 1)
+    score = round(float(metric.score), 2)
+    return Judgment(case_id=case.case_id, score=score,
+                    verdict="pass" if score >= THRESHOLD else "fail",
+                    reason=(metric.reason or "")[:160], seconds=seconds)
 
 
 # --------------------------------------------------------------------------
@@ -202,7 +234,28 @@ def validate(judgments: dict[str, Judgment],
     and if your validate ignores it, every row of that sweep will be
     identical.
     """
-    raise NotImplementedError("TODO 4: validate")
+    # Read THRESHOLD at call time, not as a default argument, so that a
+    # demonstrator who sets judge.THRESHOLD = 0.15 actually moves the gates.
+    cut = THRESHOLD if threshold is None else threshold
+    agreement = Agreement()
+    for case in LABELS:
+        judgment = judgments.get(case.case_id)
+        if judgment is None:
+            continue
+        # The verdict is recomputed here. judgment.verdict is deliberately
+        # never read: it froze whatever threshold was live at record time.
+        verdict = "pass" if judgment.score >= round(cut, 4) else "fail"
+        agreement.rows.append({
+            "case_id": case.case_id,
+            "human": case.human,
+            "judge": verdict,
+            "score": judgment.score,
+            "threshold": cut,
+            "why_human": case.why,
+            "why_judge": judgment.reason,
+            "seconds": judgment.seconds,
+        })
+    return agreement
 
 
 def fixture_path() -> Path:
@@ -218,11 +271,11 @@ def load_recorded() -> dict[str, Judgment]:
     p = fixture_path()
     if not p.exists():
         return {}
-    return {k: Judgment(**v) for k, v in json.loads(p.read_text()).items()}
+    return {k: Judgment(**v) for k, v in json.loads(p.read_text(encoding="utf-8")).items()}
 
 
 def save_recorded(judgments: dict[str, Judgment]) -> None:
     p = fixture_path()
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps({k: vars(v) for k, v in judgments.items()},
-                            indent=1) + "\n")
+                            indent=1) + "\n", encoding="utf-8")

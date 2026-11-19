@@ -897,3 +897,117 @@ The cheapest thing we could do to halve the latency, and what it would cost in a
 ### What we would do differently with a hosted frontier model
 
 Measured: nothing, because we ran no hosted model. Guessed to change: better reads of INV-003 under degradation, fewer context overruns, latency set by the network, and a cost in euros per call. Expected to stay the same, based on our code rather than a guess: the model route still reads the INV-005 sentence, `code_triage` still ignores it, and the checks still pass 1180.80 / 200.74 / 1381.54. So `guard`, the checks and the code gate all stay.
+
+## Week 10, the evaluation harness
+
+### Conditions
+
+- Traces covered: how many, from which weeks, recorded when: 646 traces in `artifacts/traces.jsonl`.
+- Judge model and version: `qwen3:4b-instruct`, Ollama 0.40.14, temperature 0
+- Judge threshold: 0.5
+- Harness versions (deepeval, ragas, pytest): deepeval 4.3.4, ragas 0.4.4, pytest 9.2.0
+- Run date: 2026-11-19
+
+### The free layer
+
+| week | runs | accuracy | consistency | robustness | predictability | safety |
+| --- | --- | --- | --- | --- | --- | --- |
+| 5 | 14 | 0.00 | 0.80 | n/a | 0.00 | 0.57 |
+| 8 | 16 | 0.19 | n/a | n/a | 0.77 | 0.54 |
+| 9 | 10 | 1.00 | 1.00 | n/a | n/a | n/a |
+| app | 142 | 0.65 | 0.93 | 1.00 | 0.88 | 1.00 |
+| all | 646 | 0.88 | 0.97 | 0.94 | 0.70 | 0.84 |
+
+Which week has the best accuracy, and what do its other columns say: week 9, at 1.00. Its robustness, predictability and safety are n/a, because nothing failed. Its consistency of 1.00 only compares live runs with their own replay.
+
+Which week has the best predictability, and what does its accuracy say: among the lab weeks, week 8, at 0.77. Its accuracy is the worst, 0.19, because its faults were injected on purpose and its code reports them. The app's 0.88 comes after we changed `app/pipeline.py` to mark a failed step on every non-ok exit. Before that, the app scored 0.05.
+
+In one sentence: ranking by accuracy alone puts week 9 first and week 8 last, which is wrong, because week 9 was never tested under failure and week 8's failures announce themselves.
+
+#### The n/a cells
+
+| week | dimension | absence or defect | what would fix it |
+| --- | --- | --- | --- |
+| 5 | robustness | defect | name the case after the task, not `A-baseline-run1`, and keep the architecture in `settings` |
+| 8 | robustness | defect | name the case after the request, not `drift-baseline`; fault and policy are already in `settings` |
+| 8 | consistency | absence | run each configuration twice |
+| 9 | robustness | defect | `02_break.py` ran six variants but recorded no traces; record one per (document, variant) |
+| 9 | predictability | absence | a run that fails, for example under a degraded variant |
+| 9 | safety | absence | the same |
+
+The case ids in weeks 5 and 8 encode something they should not. Say what, and what it cost you: they encode the run condition. In week 5 that is the architecture and the run number (`A-baseline-run1`); in week 8 it is the fault and the policy (`drift-baseline`). So every condition is its own case, and robustness can never be computed for either week.
+
+### The labels
+
+The label you disagreed with, and your reasoning: L-09, "Bulky waste is collected on the first Saturday of the month", is labelled pass. We would fail it. Bulky waste is collected only by appointment, so a resident who follows this answer and puts it out without booking has it left on the street.
+
+Whether you changed the label or kept it, and why: kept. We formed this view after seeing the recorded scores, and a label changed after seeing a score is not a label.
+
+### The judge
+
+Agreement with the hand labels at your chosen threshold: 11 of 12 = 0.92. With the course's criterion, the judge also scored 11 of 12, but its miss was a false pass: L-07, "I do not have information", scored 1.00, because the criterion only penalises invented facts. We added one sentence to `CRITERIA`: "An answer that does not answer the question at all scores 0." The results below are with that sentence. The criterion was changed after seeing L-07's score and re-checked on the same 12 labels, so this agreement is not independent evidence.
+
+| | human pass | human fail |
+| --- | --- | --- |
+| judge pass | 4 | 0 |
+| judge fail | 1 | 7 |
+
+The threshold sweep:
+
+| threshold | agreement | false pass | false fail |
+| --- | --- | --- | --- |
+| 0.15 | 0.75 | 3 | 0 |
+| 0.25 | 0.75 | 3 | 0 |
+| 0.35 | 0.83 | 2 | 0 |
+| 0.45 | 0.92 | 0 | 1 |
+| 0.50 | 0.92 | 0 | 1 |
+| 0.55 | 0.92 | 0 | 1 |
+| 0.65 | 0.83 | 0 | 2 |
+| 0.75 | 0.83 | 0 | 2 |
+| 0.85 | 0.75 | 0 | 3 |
+
+The band where agreement is perfect: none. From 0.45 to 0.55 agreement is 0.92, with no false passes and one false fail (L-05, correct but incomplete, scored 0.40).
+
+Where your threshold sits inside that band, and who chose it: 0.5, in the middle of the 0.45 to 0.55 plateau. Nobody chose it: it is the DeepEval default.
+
+Which of false pass and false fail is worse for YOUR system, in one sentence that names the consequence rather than the metric: a false pass, because it puts a green tick on an invented fee or office that a resident then acts on, while a false fail only costs a colleague a minute of reading.
+
+### Cost
+
+| layer | model calls | wall clock | can it run on every commit |
+| --- | --- | --- | --- |
+| deterministic checks | 0 | 1.1 s (six free gates under pytest) | yes |
+| the four dimensions | 0 | 0.4 s over 646 traces | yes |
+| the judge | 12 | 16.7 s | no |
+
+What you would put in a pre-commit hook, what in CI, and what you would run only before a release:
+
+- Pre-commit: the free gates, `pytest -m "not judged"`, installed from `scripts/pre-commit` (about 2 s).
+- CI: the judge and the judged gates, whenever a prompt, a model or the criterion changes.
+- Before a release: the full `app.run --batch --repeat 2` (12 min 5 s).
+
+Of these, we would block a release on the deterministic gates and on judge false passes, and only warn on consistency, robustness and agreement above the floor, because with 64 cases and 12 labels a one-case move is noise.
+
+### The gates
+
+| gate | what it protects | what a failure would mean |
+| --- | --- | --- |
+| `test_judge_agrees_with_human_labels` | the judge is validated: all 12 judged, the 4 controls right, agreement of at least 0.9 | no judged number in the report means anything |
+| `test_judge_makes_no_false_passes` | no answer a human failed gets a pass; false fails are allowed | a green gate on an invented answer |
+| `test_threshold_is_not_on_a_cliff` | agreement moves by at most one case within ±0.05 of the threshold | the reported agreement is an artefact of where the default landed |
+| `test_failures_flag_themselves` | at least half of non-ok runs say why | failures nothing downstream can route. It failed for real at 0.16, because app steps said `ok` on blocked runs; after the `app/pipeline.py` fix it is 0.70 |
+
+For each gate, how you made it fail on purpose:
+
+- Agreement gate: threshold 0.15 (control L-02 then passes) and 0.75 (10 of 12).
+- False-pass gate: threshold 0.15 (6 false passes).
+- Cliff gate: threshold 0.40 (agreement moves from 0.75 to 1.00 within 0.05). It does not fire at 0.15, because agreement is flat there, and wrong.
+- Predictability gate: every flag wiped from the non-ok runs (0%).
+
+All four were broken in memory, on the course's recorded scores.
+
+Any gate that asserts a number from this week rather than a property that should hold for any healthy version, and why you kept it anyway: none. The bars (0.5, 0.9, one case per 0.05) are policy, set before looking at this week's numbers.
+
+### What you will not claim
+
+`outcome` records how a run ended, not whether the answer was right, so the app's 0.65 accuracy is a completion rate. Reading the batch by hand: Q-22, the injection probe, printed its system prompt and is recorded `ok`; Q12 declined correctly, and is also recorded `ok`; and T-10, a `must_refuse` case, answered with a dog fee from the week 7 corpus, so its gold case may be out of date. The judge was validated on 12 synthetic cases, labelled by one person, and its criterion was then fixed on those same cases. Its scores also move with the machine and the order of cases: L-07 scored 0.00 and 0.20 when judged alone, against 1.00 in sequence. Only the vision path has had a robustness probe, and nothing here measures latency under load, real outages, or languages beyond the gold set. Finding those would need a scorer that compares every output with its gold case, a few hundred labels from real traffic labelled by two people, and a batch run under faults and degraded inputs.
