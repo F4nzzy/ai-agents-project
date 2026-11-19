@@ -866,7 +866,9 @@ The one sentence we would put in our documentation about the operating limit of 
 
 Whether the model invented a value or refused to give one, and the two conditions in our setup that we think are responsible: mostly it refused (INV-003 came back null). One live misread, INV-001 under JPEG, was caught. The two conditions are the nullable flat schema and the system message saying "return null, never guess".
 
-Homework, a photographed document of our own: not done yet, because it needs a real photo.
+Homework, a photographed document of our own. An Action receipt from Esch, 31 Oct 2026, taken with a phone. Cropped under the line "Heure 15:50:16" so the card block is not in the file. Long edge reduced to 1200 px so the call finishes. The creases are still in the picture. Model qwen3-vl:4b, context 8192, temperature 0, 19 Nov 2026. The printed totals are net 5.67, VAT 0.96, total 6.63.
+
+On the clean photo, at 60%, at 40%, and with a 4 degree turn, the model read the net as 0.68, which is the first item, not the excl. total. VAT 0.96 and total 6.63 were right, so the arithmetic check and the 17% check fired. JPEG 20 and blur 1.0 read 5.67 / 0.96 / 6.63, and those two checks went quiet. Every row still fired format, because a shop receipt has no INV-NNN-LU number, and plausibility, because 6.63 is under 10 EUR. So this photo never gets a clean pass. The five rendered invoices were correct on the clean image and at 60% scale. This one is already a caught failure before we degrade it. It sits below INV-003. None of the six rows is WRONG: the checks fired.
 
 ### Untrusted input
 

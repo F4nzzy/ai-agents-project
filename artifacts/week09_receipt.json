@@ -1,0 +1,108 @@
+{
+  "model": "qwen3-vl:4b",
+  "context_length": 8192,
+  "temperature": 0,
+  "date": "2026-11-19",
+  "document": "Action receipt, Esch, 31 Oct 2026",
+  "printed": {
+    "net": 5.67,
+    "vat": 0.96,
+    "total": 6.63
+  },
+  "variants": {
+    "clean": "the prepared photograph, no further degradation",
+    "scale=0.6": "60 percent linear scale",
+    "scale=0.4": "40 percent linear scale",
+    "scale=0.4+jpeg=20": "40 percent scale, then JPEG quality 20",
+    "scale=0.4+blur=1.0": "40 percent scale, then a 1 pixel blur",
+    "scale=0.4+rotate=4": "40 percent scale, then rotated 4 degrees"
+  },
+  "rows": [
+    {
+      "variant": "clean",
+      "outcome": "caught",
+      "parsed": {
+        "net": 0.68,
+        "vat": 0.96,
+        "total": 6.63
+      },
+      "checks_fired": [
+        "arithmetic: net 0.68 + vat 0.96 is not total 6.63",
+        "vat rate: 1.4118 is not 0.17",
+        "format: invoice_number is not INV-NNN-LU",
+        "plausibility: total 6.63 outside 10-10000 EUR"
+      ]
+    },
+    {
+      "variant": "scale=0.6",
+      "outcome": "caught",
+      "parsed": {
+        "net": 0.68,
+        "vat": 0.96,
+        "total": 6.63
+      },
+      "checks_fired": [
+        "arithmetic: net 0.68 + vat 0.96 is not total 6.63",
+        "vat rate: 1.4118 is not 0.17",
+        "format: invoice_number is not INV-NNN-LU",
+        "plausibility: total 6.63 outside 10-10000 EUR"
+      ]
+    },
+    {
+      "variant": "scale=0.4",
+      "outcome": "caught",
+      "parsed": {
+        "net": 0.68,
+        "vat": 0.96,
+        "total": 6.63
+      },
+      "checks_fired": [
+        "arithmetic: net 0.68 + vat 0.96 is not total 6.63",
+        "vat rate: 1.4118 is not 0.17",
+        "format: invoice_number is not INV-NNN-LU",
+        "plausibility: total 6.63 outside 10-10000 EUR"
+      ]
+    },
+    {
+      "variant": "scale=0.4+jpeg=20",
+      "outcome": "false_alarm",
+      "parsed": {
+        "net": 5.67,
+        "vat": 0.96,
+        "total": 6.63
+      },
+      "checks_fired": [
+        "format: invoice_number is not INV-NNN-LU",
+        "plausibility: total 6.63 outside 10-10000 EUR"
+      ]
+    },
+    {
+      "variant": "scale=0.4+blur=1.0",
+      "outcome": "false_alarm",
+      "parsed": {
+        "net": 5.67,
+        "vat": 0.96,
+        "total": 6.63
+      },
+      "checks_fired": [
+        "format: invoice_number is not INV-NNN-LU",
+        "plausibility: total 6.63 outside 10-10000 EUR"
+      ]
+    },
+    {
+      "variant": "scale=0.4+rotate=4",
+      "outcome": "caught",
+      "parsed": {
+        "net": 0.68,
+        "vat": 0.96,
+        "total": 6.63
+      },
+      "checks_fired": [
+        "arithmetic: net 0.68 + vat 0.96 is not total 6.63",
+        "vat rate: 1.4118 is not 0.17",
+        "format: invoice_number is not INV-NNN-LU",
+        "plausibility: total 6.63 outside 10-10000 EUR"
+      ]
+    }
+  ]
+}
